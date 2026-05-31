@@ -78,8 +78,7 @@ def crop_for_ocr(
     cw, ch = crop.size
     if cw < min_dim or ch < min_dim:
         scale = max(min_dim / max(1, cw), min_dim / max(1, ch))
-        scale = min(scale, 16.0)
-        crop = crop.resize((int(cw * scale), int(ch * scale)), Image.Resampling.LANCZOS)
+        crop = crop.resize((int(cw * scale), int(ch * scale)), Image.LANCZOS)
 
     buf = io.BytesIO()
     crop.save(buf, format="JPEG", quality=quality)
@@ -121,8 +120,7 @@ def crop_box_to_base64(
     cw, ch = crop.size
     if cw < min_dim or ch < min_dim:
         scale = max(min_dim / max(1, cw), min_dim / max(1, ch))
-        scale = min(scale, 16.0)
-        crop = crop.resize((int(cw * scale), int(ch * scale)), Image.Resampling.LANCZOS)
+        crop = crop.resize((int(cw * scale), int(ch * scale)), Image.LANCZOS)
 
     buf = io.BytesIO()
     crop.save(buf, format="JPEG", quality=quality)

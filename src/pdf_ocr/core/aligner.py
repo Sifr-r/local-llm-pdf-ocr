@@ -18,6 +18,7 @@ tqdm_patch.apply()
 from PIL import Image  # noqa: E402
 from surya.detection import DetectionPredictor  # noqa: E402
 
+
 BBox = list[float]  # [nx0, ny0, nx1, ny1], normalized to 0..1
 
 
@@ -50,7 +51,7 @@ class HybridAligner:
         predictions = self.detection_predictor(images)
 
         all_boxes: list[list[BBox]] = []
-        for (img_w, img_h), pred in zip(sizes, predictions, strict=False):
+        for (img_w, img_h), pred in zip(sizes, predictions):
             boxes: list[BBox] = []
             for bbox in (pred.bboxes or []):
                 x0, y0, x1, y1 = bbox.bbox
@@ -105,12 +106,10 @@ class HybridAligner:
         # (column groups, then y within column). For single-column pages
         # both collapse to the same order — we still run both, but the DP
         # is O(N*M) which is negligible at typical page sizes (~30 boxes).
-        row_major = sorted(range(len(boxes)), key=lambda i: (boxes[i][1], boxes[i][0]))
-        col_major = _reading_order_indices(boxes)
-
-        candidates = [row_major]
-        if col_major != row_major:
-            candidates.append(col_major)
+        candidates = [
+            sorted(range(len(boxes)), key=lambda i: (boxes[i][1], boxes[i][0])),
+            _reading_order_indices(boxes),
+        ]
 
         best_cost = float("inf")
         best_perm: list[int] = candidates[0]
@@ -167,7 +166,7 @@ class HybridAligner:
             f"DEBUG: DP aligned {len(lines)} lines → {best_match_count}/{len(boxes)} "
             f"boxes (cost={best_cost:.3f})"
         )
-        return [(box, text) for box, text in zip(boxes, text_per_input, strict=False)]
+        return [(box, text) for box, text in zip(boxes, text_per_input)]
 
 
 # --- module-level helpers ---------------------------------------------------
@@ -186,7 +185,7 @@ def _clamp(v: float) -> float:
 _COLUMN_GAP_THRESHOLD = 0.2
 
 
-def _reading_order_indices(boxes: list[BBox], depth: int = 0) -> list[int]:
+def _reading_order_indices(boxes: list[BBox]) -> list[int]:
     """
     Permutation of ``boxes`` indices in column-major reading order.
 
@@ -195,11 +194,10 @@ def _reading_order_indices(boxes: list[BBox], depth: int = 0) -> list[int]:
     constraint prevents a lone marginal box (e.g. a page number) from
     creating a fake column that swaps reading order. Recurses to handle
     3+ column layouts; falls back to plain row-major for single-column
-    pages and very short sequences. Limits recursion to `depth < 50` to
-    prevent stack overflow on adversarial layouts.
+    pages and very short sequences.
     """
     n = len(boxes)
-    if n < 4 or depth >= 50:
+    if n < 4:
         return sorted(range(n), key=lambda i: (boxes[i][1], boxes[i][0]))
 
     sorted_idx = sorted(range(n), key=lambda i: (boxes[i][0] + boxes[i][2]) / 2)
@@ -226,8 +224,8 @@ def _reading_order_indices(boxes: list[BBox], depth: int = 0) -> list[int]:
     # Recurse on each side, mapping sub-permutations back to global indices.
     left_subboxes = [boxes[i] for i in left_indices]
     right_subboxes = [boxes[i] for i in right_indices]
-    left_perm = _reading_order_indices(left_subboxes, depth + 1)
-    right_perm = _reading_order_indices(right_subboxes, depth + 1)
+    left_perm = _reading_order_indices(left_subboxes)
+    right_perm = _reading_order_indices(right_subboxes)
     return (
         [left_indices[k] for k in left_perm]
         + [right_indices[k] for k in right_perm]
@@ -274,7 +272,7 @@ def _estimated_capacities(boxes: list[BBox]) -> list[float]:
     """
     # Area proxy for "how much text fits here". Taller boxes hold wrapped
     # text; wider boxes hold long lines. Using area captures both.
-    areas = [max(1e-6, abs(b[2] - b[0]) * abs(b[3] - b[1])) for b in boxes]
+    areas = [max(1e-6, (b[2] - b[0]) * (b[3] - b[1])) for b in boxes]
     return areas
 
 
@@ -340,7 +338,7 @@ def _dp_align(
     M = len(boxes)
     if N == 0 or M == 0:
         return 0.0, {}, 0
-    total_chars = max(1, sum(len(line) for line in lines))
+    total_chars = max(1, sum(len(l) for l in lines))
 
     # Distribute total chars across boxes by area.
     caps = _estimated_capacities(boxes)
@@ -361,16 +359,12 @@ def _dp_align(
         dp[i][0] = dp[i - 1][0] + _SKIP_LINE_COST
         back[i][0] = 1
 
-    line_lens = [len(line) for line in lines]
     for i in range(1, N + 1):
-        line_len = line_lens[i - 1]
-        dp_i_prev = dp[i - 1]
-        dp_i = dp[i]
-        back_i = back[i]
+        li = lines[i - 1]
         for j in range(1, M + 1):
-            m_cost = dp_i_prev[j - 1] + _match_cost(line_len, expected[j - 1])
-            sl_cost = dp_i_prev[j] + _SKIP_LINE_COST
-            sb_cost = dp_i[j - 1] + _SKIP_BOX_COST
+            m_cost = dp[i - 1][j - 1] + _match_cost(len(li), expected[j - 1])
+            sl_cost = dp[i - 1][j] + _SKIP_LINE_COST
+            sb_cost = dp[i][j - 1] + _SKIP_BOX_COST
 
             best = m_cost
             op = 0
@@ -378,8 +372,8 @@ def _dp_align(
                 best, op = sl_cost, 1
             if sb_cost < best:
                 best, op = sb_cost, 2
-            dp_i[j] = best
-            back_i[j] = op
+            dp[i][j] = best
+            back[i][j] = op
 
     # Backtrack to produce the ordered op list.
     mapping: dict[int, list[str]] = {}

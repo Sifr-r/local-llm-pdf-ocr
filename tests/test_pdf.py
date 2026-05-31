@@ -132,9 +132,8 @@ def test_convert_image_file_to_single_page(
     assert list(images.keys()) == [0]
 
     import base64
-    import io
-
     from PIL import Image as PILImage
+    import io
     raw = base64.b64decode(images[0])
     img = PILImage.open(io.BytesIO(raw))
     assert img.size[0] > 0 and img.size[1] > 0
@@ -199,11 +198,9 @@ def test_is_blank_crop_distinguishes_blank_from_text(tmp_path: Path):
     """Stddev-based blank detector: blank crops short-circuit refine
     before paying for an LLM call (OlmOCR hallucinates canned text on
     blank input)."""
+    from PIL import Image, ImageDraw
     import base64
     import io
-
-    from PIL import Image, ImageDraw
-
     from pdf_ocr.utils.image import is_blank_crop
 
     # Build a page-like image: top half blank-white, bottom half has text.
