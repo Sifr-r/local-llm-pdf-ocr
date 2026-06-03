@@ -29,11 +29,16 @@ PDF/image -> grounded bbox-native VLM OCR -> optional post-process -> searchable
 | `src/pdf_ocr/core/grounded.py` | Grounded OCR backends and bbox-native response parsing |
 | `src/pdf_ocr/core/postprocess.py` | Dictionary-based spellcheck post-processing |
 | `src/pdf_ocr/core/translation.py` | Optional LangGraph translation workflow |
-| `src/pdf_ocr/api/routers/ocr.py` | OCR, translation, extraction, and asynchronous job routes |
+| `src/pdf_ocr/api/routers/ocr.py` | OCR document processing, token-bound text retrieval, and recent OCR job history routes |
+| `src/pdf_ocr/api/routers/ai.py` | Translation, structured extraction, and asynchronous translation HTTP routes |
 | `src/pdf_ocr/api/routers/config.py` | Runtime configuration and model discovery |
-| `src/pdf_ocr/api/routers/websocket.py` | WebSocket progress transport |
+| `src/pdf_ocr/api/routers/websocket.py` | Token-bound WebSocket progress transport and progress session issuance |
 | `src/pdf_ocr/api/schemas/` | Typed FastAPI boundary schemas for runtime configuration, OCR form settings, translation, and extraction requests |
-| `src/pdf_ocr/api/services/security.py` | API upload validation, stable error constants, temporary-file cleanup, and opaque text artifact IDs |
+| `src/pdf_ocr/api/services/ai.py` | AI translation and structured extraction settings resolution, prompts, LiteLLM calls, JSON parsing, and domain errors |
+| `src/pdf_ocr/api/services/artifacts.py` | Token-bound extracted-text artifact persistence, expiry, bounded retention, and cleanup |
+| `src/pdf_ocr/api/services/jobs.py` | Capped in-memory OCR job history records |
+| `src/pdf_ocr/api/services/progress.py` | Progress stage percentage mapping and opaque channel/session token validation |
+| `src/pdf_ocr/api/services/security.py` | API upload validation, stable error constants, and temporary-file cleanup |
 | `src/pdf_ocr/api/tasks.py` | Celery OCR task execution |
 | `src/pdf_ocr/utils/image.py` | Image crop, blank-region detection, and crop encoding helpers |
 | `src/pdf_ocr/utils/security.py` | SSRF target validation |
@@ -80,3 +85,34 @@ form until embedding.
 | `src/pdf_ocr/static/js/workspace_ui.js` | Provide safe DOM helpers for clearing elements and rendering extraction status cards |
 | `tests/test_api_safety.py` | Cover config validation, SSRF fail-closed behavior, streaming upload validation, opaque text artifacts, stable API errors, and static JS sink removal |
 | `tests/test_security_qa.py` | Keep extraction JSON parsing deterministic under fail-closed SSRF validation |
+
+### 2026-06-03: Stage 2 API service boundaries and artifact safety
+
+| File | Responsibility |
+| --- | --- |
+| `src/pdf_ocr/api/services/artifacts.py` | Store extracted-text JSON artifacts behind server-issued IDs and bearer-style tokens with TTL expiry, max-entry eviction, and backing-file cleanup |
+| `src/pdf_ocr/api/services/jobs.py` | Record bounded OCR job metadata with deterministic validation and newest-first listing |
+| `src/pdf_ocr/api/services/progress.py` | Map pipeline stages to UI percentages and validate opaque progress channel/session bindings |
+| `src/pdf_ocr/api/routers/ocr.py` | Delegate artifact, job, and progress concerns to services while preserving OCR, translation, extraction, and async task endpoints |
+| `src/pdf_ocr/api/routers/websocket.py` | Issue progress sessions and accept only token-bound websocket progress channels |
+| `src/pdf_ocr/api/services/security.py` | Keep upload validation and temp-file cleanup separate from artifact authorization |
+| `src/pdf_ocr/static/js/app.js` | Request token-bound progress sessions and retrieve extracted text with artifact bearer tokens |
+| `src/pdf_ocr/static/js/state_and_api.js` | Track current artifact and progress-session metadata in browser state |
+| `tests/test_artifact_store.py` | Cover artifact token binding, expiry cleanup, max-entry eviction, invalid IDs, idempotent deletion, and JSON writes |
+| `tests/test_jobs_progress_services.py` | Cover job history capping/validation and progress stage/channel validation |
+| `tests/test_api_safety.py` | Cover router-level artifact token enforcement, artifact expiry, progress-session binding, and Stage 1 API safety regressions |
+| `ARCHITECTURE.md` | Record Stage 2 service boundaries and single responsibilities |
+
+### 2026-06-03: Stage 3 AI API router and service split
+
+| File | Responsibility |
+| --- | --- |
+| `src/pdf_ocr/api/services/ai.py` | Resolve AI request settings against runtime config, block unsafe API bases, build translation and extraction prompts, call LiteLLM, parse extraction JSON, and raise stable domain errors |
+| `src/pdf_ocr/api/routers/ai.py` | Expose translation, extraction, asynchronous translation dispatch, and translation status endpoints as a thin HTTP layer over AI services and Celery |
+| `src/pdf_ocr/api/routers/ocr.py` | Remain focused on OCR processing, extracted-text artifact retrieval, and OCR job history |
+| `src/pdf_ocr/server.py` | Register the AI router alongside config, OCR, and websocket routers |
+| `tests/test_ai_services.py` | Cover AI settings resolution, prompt construction, SSRF blocking, provider error wrapping, and deterministic extraction JSON parsing |
+| `tests/test_ai_router.py` | Cover AI route stable errors, SSRF blocking, invalid extraction JSON behavior, and translation status response shape |
+| `tests/test_api_safety.py` | Include the AI router in safety-route test apps after the endpoint split |
+| `tests/test_security_qa.py` | Exercise robust extraction JSON behavior through the AI service boundary |
+| `ARCHITECTURE.md` | Record Stage 3 API service and router responsibilities |
