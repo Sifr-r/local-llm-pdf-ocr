@@ -48,13 +48,33 @@ window.addEventListener('DOMContentLoaded', async () => {
     setupAIFeatures();
     
     // Connect WebSocket progress listener immediately
-    connectWS();
+    connectWS().catch((err) => {
+        console.error('Progress connection failed:', err);
+    });
 });
 
 // 1. WebSocket Progress Orchestration
-function connectWS() {
+async function ensureProgressSession() {
+    if (state.progressChannelId && state.progressSessionToken) return;
+
+    const response = await fetch('/api/progress/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_id: clientId })
+    });
+    if (!response.ok) throw new Error('Could not create progress session');
+
+    const session = await response.json();
+    state.progressChannelId = session.channel_id;
+    state.progressSessionToken = session.session_token;
+}
+
+async function connectWS() {
+    await ensureProgressSession();
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    state.ws = new WebSocket(`${protocol}//${window.location.host}/ws/${clientId}`);
+    const channel = encodeURIComponent(state.progressChannelId);
+    const token = encodeURIComponent(state.progressSessionToken);
+    state.ws = new WebSocket(`${protocol}//${window.location.host}/ws/${channel}?token=${token}`);
     
     state.ws.onmessage = (event) => {
         try {
@@ -103,7 +123,7 @@ function connectWS() {
             refs.connStatus.title = 'Disconnected';
         }
         if(refs.connectionStatusDot) refs.connectionStatusDot.className = 'status-dot offline';
-        setTimeout(connectWS, 5000);
+        setTimeout(() => { connectWS().catch(console.error); }, 5000);
     };
 }
 
@@ -175,6 +195,9 @@ async function triggerDocuVerseOCR(file) {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('client_id', clientId);
+    await ensureProgressSession();
+    formData.append('progress_channel', state.progressChannelId);
+    formData.append('progress_token', state.progressSessionToken);
     
     // Append form parameters
     const settings = getFormSettings();
