@@ -3,6 +3,7 @@
 from .requests import (
     ConfigUpdate,
     DenseMode,
+    ExportDocxRequest,
     ExtractionRequest,
     PipelineMode,
     ProcessSettings,
@@ -14,6 +15,7 @@ __all__ = [
     "ConfigUpdate",
     "DenseMode",
     "ExtractionRequest",
+    "ExportDocxRequest",
     "PipelineMode",
     "ProcessSettings",
     "SpellcheckMode",

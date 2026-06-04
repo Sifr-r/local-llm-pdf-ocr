@@ -106,7 +106,9 @@ def test_translation_status_success_shape():
 
     client = _api_client()
     with (
-        patch("local_deepl.api.celery_app.celery_app.AsyncResult", return_value=_Task()),
+        patch(
+            "local_deepl.api.celery_app.celery_app.AsyncResult", return_value=_Task()
+        ),
     ):
         response = client.get("/api/translate/status/job-1")
 

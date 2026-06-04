@@ -61,7 +61,7 @@ class TestAxisDetection:
         boxes = [
             [50, 100, 100, 900],  # portrait
             [120, 100, 170, 900],  # portrait
-            [100, 50, 900, 100],   # landscape
+            [100, 50, 900, 100],  # landscape
         ]
         assert _detect_bbox_axis_order(boxes) == "yxyx"
 
@@ -109,8 +109,7 @@ class TestLoadGroundTruth:
         # 45 entries, 7 are `empty_line` → 38 content blocks.
         assert len(blocks) == 38
         portrait = sum(
-            1 for b in blocks
-            if (b.bbox[3] - b.bbox[1]) > 1.5 * (b.bbox[2] - b.bbox[0])
+            1 for b in blocks if (b.bbox[3] - b.bbox[1]) > 1.5 * (b.bbox[2] - b.bbox[0])
         )
         assert portrait == 0
 
@@ -120,8 +119,7 @@ class TestLoadGroundTruth:
         # 17 entries, 1 `signature_line` filtered → 16 blocks.
         assert len(blocks) == 16
         portrait = sum(
-            1 for b in blocks
-            if (b.bbox[3] - b.bbox[1]) > 1.5 * (b.bbox[2] - b.bbox[0])
+            1 for b in blocks if (b.bbox[3] - b.bbox[1]) > 1.5 * (b.bbox[2] - b.bbox[0])
         )
         assert portrait == 0
 
@@ -193,8 +191,15 @@ class TestComputeReport:
         assert report.block_recall == 0.0
 
     def test_text_similarity_with_minor_differences(self):
-        gt = [GTBlock(bbox=[0.0, 0.0, 1.0, 0.1], text="Halting: the algo needs to finish in finite time.")]
-        pipeline = [([0.0, 0.0, 1.0, 0.1], "Halting the algo needs to finish in finite time")]
+        gt = [
+            GTBlock(
+                bbox=[0.0, 0.0, 1.0, 0.1],
+                text="Halting: the algo needs to finish in finite time.",
+            )
+        ]
+        pipeline = [
+            ([0.0, 0.0, 1.0, 0.1], "Halting the algo needs to finish in finite time")
+        ]
         report = compute_report("x", gt, pipeline)
         assert len(report.matched) == 1
         assert report.avg_text_similarity > 0.9
@@ -222,11 +227,14 @@ def test_report_handles_empty_ground_truth():
     assert report.block_recall == 0.0  # 0/max(1, 0) = 0
 
 
-@pytest.mark.parametrize("fixture", [
-    "ground_truth_handwritten.json",
-    "ground_truth_hybrid.json",
-    "ground_truth_digital.json",
-])
+@pytest.mark.parametrize(
+    "fixture",
+    [
+        "ground_truth_handwritten.json",
+        "ground_truth_hybrid.json",
+        "ground_truth_digital.json",
+    ],
+)
 def test_all_fixtures_loadable(fixture):
     """Smoke test: every shipped fixture loads cleanly."""
     blocks, (fw, fh) = load_ground_truth(FIXTURES / fixture)

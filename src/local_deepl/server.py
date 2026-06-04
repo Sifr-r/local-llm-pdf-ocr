@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 """
 FastAPI web server: thin wrapper around OCRPipeline with WebSocket progress.
 
@@ -9,6 +10,10 @@ from __future__ import annotations
 
 import argparse
 import importlib
+
+from dotenv import load_dotenv
+
+load_dotenv()
 from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
 from types import ModuleType

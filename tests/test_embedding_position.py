@@ -69,7 +69,10 @@ class TestSingleBoxPosition:
         marker = "ZETAMARK"
         bbox_norm = [0.25, 0.35, 0.55, 0.40]
         pdf_handler.embed_structured_text(
-            input_pdf, output_pdf, {0: [(bbox_norm, marker)]}, dpi=150,
+            input_pdf,
+            output_pdf,
+            {0: [(bbox_norm, marker)]},
+            dpi=150,
         )
 
         with fitz.open(output_pdf) as doc:
@@ -106,7 +109,10 @@ class TestMultiBoxIsolation:
             ([0.10, 0.60, 0.40, 0.64], "GAMMAWORD"),
         ]
         pdf_handler.embed_structured_text(
-            input_pdf, output_pdf, {0: layout}, dpi=150,
+            input_pdf,
+            output_pdf,
+            {0: layout},
+            dpi=150,
         )
 
         with fitz.open(output_pdf) as doc:
@@ -114,21 +120,16 @@ class TestMultiBoxIsolation:
             pw, ph = page.rect.width, page.rect.height
             rects = [(_bbox_to_pdf_rect(b, pw, ph), m) for b, m in layout]
             hits_per_box = [
-                (marker, _extract_words_in_rect(page, rect))
-                for rect, marker in rects
+                (marker, _extract_words_in_rect(page, rect)) for rect, marker in rects
             ]
 
         # Each box should contain its own marker and NOT the other two.
         all_markers = {m for _, m in layout}
         for marker, hits in hits_per_box:
             joined = " ".join(hits)
-            assert marker in joined, (
-                f"{marker} missing from its own box; hits: {hits}"
-            )
+            assert marker in joined, f"{marker} missing from its own box; hits: {hits}"
             intruders = (all_markers - {marker}) & set(hits)
-            assert not intruders, (
-                f"{marker}'s box contains foreign markers {intruders}"
-            )
+            assert not intruders, f"{marker}'s box contains foreign markers {intruders}"
 
 
 class TestClipExtraction:
@@ -143,7 +144,10 @@ class TestClipExtraction:
         marker = "CLIPMARKER"
         bbox_norm = [0.15, 0.45, 0.45, 0.49]
         pdf_handler.embed_structured_text(
-            input_pdf, output_pdf, {0: [(bbox_norm, marker)]}, dpi=150,
+            input_pdf,
+            output_pdf,
+            {0: [(bbox_norm, marker)]},
+            dpi=150,
         )
 
         with fitz.open(output_pdf) as doc:
@@ -154,9 +158,7 @@ class TestClipExtraction:
         # The clip region may also pick up the image's rasterized-then-invisible
         # glyphs from the underlying example page — but our embedded marker
         # is a unique string that wouldn't occur there naturally.
-        assert marker in clipped, (
-            f"expected {marker} in clip text; got {clipped!r}"
-        )
+        assert marker in clipped, f"expected {marker} in clip text; got {clipped!r}"
 
 
 class TestNoLeakageOutsideBox:
@@ -172,7 +174,10 @@ class TestNoLeakageOutsideBox:
         # Put marker firmly in top-left quadrant.
         bbox_norm = [0.10, 0.10, 0.35, 0.13]
         pdf_handler.embed_structured_text(
-            input_pdf, output_pdf, {0: [(bbox_norm, marker)]}, dpi=150,
+            input_pdf,
+            output_pdf,
+            {0: [(bbox_norm, marker)]},
+            dpi=150,
         )
 
         with fitz.open(output_pdf) as doc:
@@ -204,14 +209,21 @@ class TestFullBboxCoverage:
         bbox_norm = [0.20, 0.30, 0.70, 0.34]  # 50% wide, 4% tall
         marker = "Hi"  # only 2 chars — used to fill ~20% of box width
         pdf_handler.embed_structured_text(
-            input_pdf, output_pdf, {0: [(bbox_norm, marker)]}, dpi=150,
+            input_pdf,
+            output_pdf,
+            {0: [(bbox_norm, marker)]},
+            dpi=150,
         )
 
         with fitz.open(output_pdf) as doc:
             page = doc[0]
             pw, ph = page.rect.width, page.rect.height
-            box_rect = fitz.Rect(bbox_norm[0] * pw, bbox_norm[1] * ph,
-                                 bbox_norm[2] * pw, bbox_norm[3] * ph)
+            box_rect = fitz.Rect(
+                bbox_norm[0] * pw,
+                bbox_norm[1] * ph,
+                bbox_norm[2] * pw,
+                bbox_norm[3] * ph,
+            )
             words = [w for w in page.get_text("words") if marker in w[4]]
             assert words, f"marker {marker!r} not emitted"
             wr = fitz.Rect(words[0][0], words[0][1], words[0][2], words[0][3])
@@ -236,22 +248,33 @@ class TestFullBboxCoverage:
         bbox_norm = [0.20, 0.30, 0.70, 0.34]
         marker = "ALPHAWORD"
         pdf_handler.embed_structured_text(
-            input_pdf, output_pdf, {0: [(bbox_norm, marker)]}, dpi=150,
+            input_pdf,
+            output_pdf,
+            {0: [(bbox_norm, marker)]},
+            dpi=150,
         )
 
         with fitz.open(output_pdf) as doc:
             page = doc[0]
             pw, ph = page.rect.width, page.rect.height
-            box_rect = fitz.Rect(bbox_norm[0] * pw, bbox_norm[1] * ph,
-                                 bbox_norm[2] * pw, bbox_norm[3] * ph)
+            box_rect = fitz.Rect(
+                bbox_norm[0] * pw,
+                bbox_norm[1] * ph,
+                bbox_norm[2] * pw,
+                bbox_norm[3] * ph,
+            )
             right_half = fitz.Rect(
                 box_rect.x0 + box_rect.width * 0.6,  # right 40% of box
-                box_rect.y0, box_rect.x1, box_rect.y1,
+                box_rect.y0,
+                box_rect.x1,
+                box_rect.y1,
             )
             right_text = page.get_text("text", clip=right_half).strip()
 
         # Whatever we get back must be a non-empty suffix of the marker.
-        assert right_text, "right half of wide box returned nothing — stretch regression"
+        assert right_text, (
+            "right half of wide box returned nothing — stretch regression"
+        )
         assert right_text in marker, (
             f"right-half text {right_text!r} is not a substring of {marker!r}"
         )
@@ -268,14 +291,21 @@ class TestFullBboxCoverage:
         # Include descenders and ascenders so we hit the worst-case extent.
         marker = "jumping Ayaks grep"
         pdf_handler.embed_structured_text(
-            input_pdf, output_pdf, {0: [(bbox_norm, marker)]}, dpi=150,
+            input_pdf,
+            output_pdf,
+            {0: [(bbox_norm, marker)]},
+            dpi=150,
         )
 
         with fitz.open(output_pdf) as doc:
             page = doc[0]
             pw, ph = page.rect.width, page.rect.height
-            box_rect = fitz.Rect(bbox_norm[0] * pw, bbox_norm[1] * ph,
-                                 bbox_norm[2] * pw, bbox_norm[3] * ph)
+            box_rect = fitz.Rect(
+                bbox_norm[0] * pw,
+                bbox_norm[1] * ph,
+                bbox_norm[2] * pw,
+                bbox_norm[3] * ph,
+            )
             words = page.get_text("words")
 
         tol = 0.5  # sub-pixel rounding tolerance
@@ -300,17 +330,24 @@ class TestFullBboxCoverage:
         output_pdf = str(tmp_path / "multiline_real.pdf")
 
         # Real (non-full-page) bbox in the middle of the page.
-        bbox_norm = [0.20, 0.40, 0.60, 0.50]   # 10% page-height slice
+        bbox_norm = [0.20, 0.40, 0.60, 0.50]  # 10% page-height slice
         joined_text = "FIRSTLINE\nSECONDLINE"
         pdf_handler.embed_structured_text(
-            input_pdf, output_pdf, {0: [(bbox_norm, joined_text)]}, dpi=150,
+            input_pdf,
+            output_pdf,
+            {0: [(bbox_norm, joined_text)]},
+            dpi=150,
         )
 
         with fitz.open(output_pdf) as doc:
             page = doc[0]
             pw, ph = page.rect.width, page.rect.height
-            box_rect = fitz.Rect(bbox_norm[0] * pw, bbox_norm[1] * ph,
-                                 bbox_norm[2] * pw, bbox_norm[3] * ph)
+            box_rect = fitz.Rect(
+                bbox_norm[0] * pw,
+                bbox_norm[1] * ph,
+                bbox_norm[2] * pw,
+                bbox_norm[3] * ph,
+            )
             full_text = page.get_text("text")
             words = page.get_text("words")
 
@@ -352,14 +389,19 @@ class TestFullBboxCoverage:
         bbox_norm = [0.10, 0.20, 0.40, 0.247]
         text = "Typen 23"
         pdf_handler.embed_structured_text(
-            input_pdf, output_pdf, {0: [(bbox_norm, text)]}, dpi=150,
+            input_pdf,
+            output_pdf,
+            {0: [(bbox_norm, text)]},
+            dpi=150,
         )
 
         with fitz.open(output_pdf) as doc:
             words = doc[0].get_text("words")
 
         # Both words must land at the SAME y band — i.e. one visual line.
-        ys = sorted({round(y0) for x0, y0, x1, y1, w, *_ in words if w in ("Typen", "23")})
+        ys = sorted(
+            {round(y0) for x0, y0, x1, y1, w, *_ in words if w in ("Typen", "23")}
+        )
         assert len(ys) == 1, (
             f"expected single y band for 'Typen 23'; got {len(ys)} bands at {ys}"
         )
@@ -380,17 +422,24 @@ class TestFullBboxCoverage:
         # Tall bbox spanning ~10% of page height with no embedded \n —
         # mimics what the hybrid pipeline produces when Surya groups
         # two visual lines and OlmOCR returns the joined phrase.
-        bbox_norm = [0.10, 0.40, 0.50, 0.50]   # ~80pt tall in 792pt page
+        bbox_norm = [0.10, 0.40, 0.50, 0.50]  # ~80pt tall in 792pt page
         joined_text = "FIRSTLINE SECONDLINE"
         pdf_handler.embed_structured_text(
-            input_pdf, output_pdf, {0: [(bbox_norm, joined_text)]}, dpi=150,
+            input_pdf,
+            output_pdf,
+            {0: [(bbox_norm, joined_text)]},
+            dpi=150,
         )
 
         with fitz.open(output_pdf) as doc:
             page = doc[0]
             pw, ph = page.rect.width, page.rect.height
-            box_rect = fitz.Rect(bbox_norm[0] * pw, bbox_norm[1] * ph,
-                                 bbox_norm[2] * pw, bbox_norm[3] * ph)
+            box_rect = fitz.Rect(
+                bbox_norm[0] * pw,
+                bbox_norm[1] * ph,
+                bbox_norm[2] * pw,
+                bbox_norm[3] * ph,
+            )
             words = page.get_text("words")
 
         assert words, "expected SOME embedded words"
@@ -423,7 +472,10 @@ class TestFullBboxCoverage:
 
         joined = "AAA\nBBB\nCCC"
         pdf_handler.embed_structured_text(
-            input_pdf, output_pdf, {0: [([0.0, 0.0, 1.0, 1.0], joined)]}, dpi=150,
+            input_pdf,
+            output_pdf,
+            {0: [([0.0, 0.0, 1.0, 1.0], joined)]},
+            dpi=150,
         )
 
         with fitz.open(output_pdf) as doc:
@@ -443,14 +495,21 @@ class TestFullBboxCoverage:
         bbox_norm = [0.20, 0.50, 0.35, 0.54]
         marker = "LONGMARKER one two three four five six"
         pdf_handler.embed_structured_text(
-            input_pdf, output_pdf, {0: [(bbox_norm, marker)]}, dpi=150,
+            input_pdf,
+            output_pdf,
+            {0: [(bbox_norm, marker)]},
+            dpi=150,
         )
 
         with fitz.open(output_pdf) as doc:
             page = doc[0]
             pw, ph = page.rect.width, page.rect.height
-            box_rect = fitz.Rect(bbox_norm[0] * pw, bbox_norm[1] * ph,
-                                 bbox_norm[2] * pw, bbox_norm[3] * ph)
+            box_rect = fitz.Rect(
+                bbox_norm[0] * pw,
+                bbox_norm[1] * ph,
+                bbox_norm[2] * pw,
+                bbox_norm[3] * ph,
+            )
             words = page.get_text("words")
 
         tol = 0.5

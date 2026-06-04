@@ -38,7 +38,7 @@ BBox = list[float]
 
 @dataclass
 class GTBlock:
-    bbox: BBox       # normalized [x0, y0, x1, y1] in 0..1
+    bbox: BBox  # normalized [x0, y0, x1, y1] in 0..1
     text: str
     page_index: int = 0
     label: str = "text"
@@ -46,12 +46,14 @@ class GTBlock:
 
 # Labels that describe *structural* regions rather than selectable text —
 # skipping them keeps the confidence eval focused on content blocks.
-NON_CONTENT_LABELS = frozenset({
-    "image",
-    "empty_line",      # underline placeholder for unfilled fields
-    "signature_line",  # "_______________________ _______________________"
-    "list_marker",     # bare "-" / bullet glyphs
-})
+NON_CONTENT_LABELS = frozenset(
+    {
+        "image",
+        "empty_line",  # underline placeholder for unfilled fields
+        "signature_line",  # "_______________________ _______________________"
+        "list_marker",  # bare "-" / bullet glyphs
+    }
+)
 
 
 @dataclass
@@ -157,7 +159,9 @@ def _swap_axes(b: BBox) -> BBox:
 # --- fixture loader --------------------------------------------------------
 
 
-def load_ground_truth(fixture_path: Path | str) -> tuple[list[GTBlock], tuple[int, int]]:
+def load_ground_truth(
+    fixture_path: Path | str,
+) -> tuple[list[GTBlock], tuple[int, int]]:
     """
     Load a fixture JSON and return (blocks, (fixture_width, fixture_height)).
 
@@ -169,7 +173,9 @@ def load_ground_truth(fixture_path: Path | str) -> tuple[list[GTBlock], tuple[in
 
     d = data.get("data", data)
     raw_layout = d.get("layout", [])
-    raw_items = [b for b in raw_layout if b.get("block_label") not in NON_CONTENT_LABELS]
+    raw_items = [
+        b for b in raw_layout if b.get("block_label") not in NON_CONTENT_LABELS
+    ]
     raw_boxes = [b["bbox"] for b in raw_items]
 
     order = _detect_bbox_axis_order(raw_boxes)
@@ -187,17 +193,19 @@ def load_ground_truth(fixture_path: Path | str) -> tuple[list[GTBlock], tuple[in
         x0, y0, x1, y1 = bbox
         # Clamp and normalize. Use fixture-declared page dims — that's the
         # coord frame the bboxes were written against.
-        blocks.append(GTBlock(
-            bbox=[
-                max(0.0, min(1.0, x0 / fw)),
-                max(0.0, min(1.0, y0 / fh)),
-                max(0.0, min(1.0, x1 / fw)),
-                max(0.0, min(1.0, y1 / fh)),
-            ],
-            text=(item.get("block_content") or "").strip(),
-            page_index=item.get("page_index", 0),
-            label=item.get("block_label", "text"),
-        ))
+        blocks.append(
+            GTBlock(
+                bbox=[
+                    max(0.0, min(1.0, x0 / fw)),
+                    max(0.0, min(1.0, y0 / fh)),
+                    max(0.0, min(1.0, x1 / fw)),
+                    max(0.0, min(1.0, y1 / fh)),
+                ],
+                text=(item.get("block_content") or "").strip(),
+                page_index=item.get("page_index", 0),
+                label=item.get("block_label", "text"),
+            )
+        )
     return blocks, (fw, fh)
 
 
@@ -247,18 +255,27 @@ def compute_report(
         if best_i >= 0 and best_iou >= iou_threshold:
             used.add(best_i)
             pbox, ptext = pipeline_output[best_i]
-            matches.append(BlockMatch(
-                gt_text=gt.text, gt_bbox=gt.bbox,
-                pipeline_text=ptext, pipeline_bbox=pbox,
-                iou=best_iou,
-                text_similarity=text_similarity(gt.text, ptext),
-            ))
+            matches.append(
+                BlockMatch(
+                    gt_text=gt.text,
+                    gt_bbox=gt.bbox,
+                    pipeline_text=ptext,
+                    pipeline_bbox=pbox,
+                    iou=best_iou,
+                    text_similarity=text_similarity(gt.text, ptext),
+                )
+            )
         else:
-            matches.append(BlockMatch(
-                gt_text=gt.text, gt_bbox=gt.bbox,
-                pipeline_text=None, pipeline_bbox=None,
-                iou=best_iou, text_similarity=0.0,
-            ))
+            matches.append(
+                BlockMatch(
+                    gt_text=gt.text,
+                    gt_bbox=gt.bbox,
+                    pipeline_text=None,
+                    pipeline_bbox=None,
+                    iou=best_iou,
+                    text_similarity=0.0,
+                )
+            )
     return ConfidenceReport(
         document=document,
         iou_threshold=iou_threshold,

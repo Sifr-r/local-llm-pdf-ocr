@@ -34,7 +34,11 @@ class TestNormalizeLines:
         assert _normalize_lines(["  hello  ", "world"]) == ["hello", "world"]
 
     def test_list_items_with_embedded_newlines(self):
-        assert _normalize_lines(["line1\nline2", "line3"]) == ["line1", "line2", "line3"]
+        assert _normalize_lines(["line1\nline2", "line3"]) == [
+            "line1",
+            "line2",
+            "line3",
+        ]
 
     def test_empty_inputs(self):
         assert _normalize_lines("") == []
@@ -95,9 +99,9 @@ class TestDPAlign:
         # Short heading + very long paragraph + short footer should map by size.
         lines = ["Title", "x" * 200, "Fin"]
         boxes = [
-            [0.1, 0.05, 0.3, 0.08],   # tiny
-            [0.0, 0.15, 1.0, 0.85],   # huge
-            [0.4, 0.9, 0.55, 0.93],   # tiny
+            [0.1, 0.05, 0.3, 0.08],  # tiny
+            [0.0, 0.15, 1.0, 0.85],  # huge
+            [0.4, 0.9, 0.55, 0.93],  # tiny
         ]
         _, mapping, _ = _dp_align(lines, boxes)
         assert mapping[0] == ["Title"]
@@ -125,15 +129,15 @@ class TestDPAlign:
         # home for the long line; if the DP leaves it empty, refine
         # crops the same content and produces a duplicate.
         lines = [
-            "x" * 12,    # short
-            "x" * 40,    # long
-            "x" * 12,    # short
+            "x" * 12,  # short
+            "x" * 40,  # long
+            "x" * 12,  # short
         ]
         boxes = [
-            [0.05, 0.05, 0.30, 0.10],   # medium
-            [0.05, 0.15, 0.15, 0.18],   # narrow trap
-            [0.05, 0.25, 0.95, 0.32],   # wide (long-line home)
-            [0.05, 0.40, 0.30, 0.45],   # medium
+            [0.05, 0.05, 0.30, 0.10],  # medium
+            [0.05, 0.15, 0.15, 0.18],  # narrow trap
+            [0.05, 0.25, 0.95, 0.32],  # wide (long-line home)
+            [0.05, 0.40, 0.30, 0.45],  # medium
         ]
         out = _aligner().align_text([(b, "") for b in boxes], lines)
         texts = [t for _, t in out]
@@ -157,10 +161,10 @@ class TestDPAlign:
             "Right column body text continues on",
         ]
         boxes = [
-            [0.05, 0.10, 0.45, 0.15],   # L row 1
-            [0.05, 0.18, 0.45, 0.30],   # L row 2
-            [0.55, 0.10, 0.95, 0.12],   # R short title
-            [0.55, 0.15, 0.95, 0.35],   # R body
+            [0.05, 0.10, 0.45, 0.15],  # L row 1
+            [0.05, 0.18, 0.45, 0.30],  # L row 2
+            [0.55, 0.10, 0.95, 0.12],  # R short title
+            [0.55, 0.15, 0.95, 0.35],  # R body
         ]
         _, mapping, _ = _dp_align(lines, boxes)
         assert len(mapping) == 4
@@ -173,10 +177,10 @@ class TestDPAlign:
         # depends on the box ordering. align_text relies on this.
         lines = ["tiny", "x" * 200, "x" * 200, "tiny"]
         boxes_aligned = [
-            [0.0, 0.05, 0.10, 0.10],   # tiny
-            [0.0, 0.15, 1.0, 0.45],    # huge
-            [0.0, 0.50, 1.0, 0.80],    # huge
-            [0.4, 0.85, 0.55, 0.90],   # tiny
+            [0.0, 0.05, 0.10, 0.10],  # tiny
+            [0.0, 0.15, 1.0, 0.45],  # huge
+            [0.0, 0.50, 1.0, 0.80],  # huge
+            [0.4, 0.85, 0.55, 0.90],  # tiny
         ]
         boxes_shuffled = [boxes_aligned[i] for i in (1, 0, 3, 2)]
         cost_aligned, _, _ = _dp_align(lines, boxes_aligned)
@@ -233,13 +237,9 @@ class TestAlignTextPublicAPI:
         # search works across the whole page instead of one corner.
         boxes = [[0.05, i * 0.05, 0.45, i * 0.05 + 0.04] for i in range(20)]
         structured = [(b, "") for b in boxes]
-        single_line = (
-            "all the page text emitted as one big string with no line breaks"
-        )
+        single_line = "all the page text emitted as one big string with no line breaks"
         out = _aligner().align_text(structured, [single_line])
-        assert len(out) == 1, (
-            f"expected full-page fallback, got {len(out)} boxes"
-        )
+        assert len(out) == 1, f"expected full-page fallback, got {len(out)} boxes"
         bbox, text = out[0]
         assert bbox == [0.0, 0.0, 1.0, 1.0]
         assert text == single_line
@@ -414,7 +414,7 @@ class TestReadingOrderSort:
         assert x_centers[:3] == sorted(x_centers[:3])
         # Each contiguous run of 3 should share the same column band.
         for start in (0, 3, 6):
-            xs = x_centers[start:start + 3]
+            xs = x_centers[start : start + 3]
             assert max(xs) - min(xs) < 0.1, f"column band leaked at {start}"
         # Across runs, x must be increasing (left → right).
         assert x_centers[0] < x_centers[3] < x_centers[6]

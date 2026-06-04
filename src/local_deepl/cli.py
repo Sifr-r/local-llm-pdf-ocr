@@ -43,58 +43,82 @@ Examples:
         "input_pdf",  # kwarg name kept for internal stability; accepts PDFs *and* images.
         metavar="input",
         help="Path to a PDF or image file (JPEG/PNG/TIFF/BMP/WebP/AVIF). "
-             "Multi-frame TIFFs expand to multiple output pages.",
+        "Multi-frame TIFFs expand to multiple output pages.",
     )
     parser.add_argument(
-        "output_pdf", nargs="?",
+        "output_pdf",
+        nargs="?",
         metavar="output",
         help="Path to output PDF (always a PDF, even for image inputs; "
-             "defaults to <input_stem>_ocr.pdf).",
+        "defaults to <input_stem>_ocr.pdf).",
     )
-    parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose debug logging")
-    parser.add_argument("--quiet", "-q", action="store_true", help="Suppress all output except errors")
-    parser.add_argument("--dpi", type=int, default=200, help="DPI for image rendering (default: 200)")
-    parser.add_argument("--pages", help="Page range to process, e.g., '1-3,5' (default: all)")
-    parser.add_argument("--concurrency", type=int, default=1, help="Parallel LLM requests (default: 1)")
     parser.add_argument(
-        "--no-refine", dest="refine", action="store_false",
+        "--verbose", "-v", action="store_true", help="Enable verbose debug logging"
+    )
+    parser.add_argument(
+        "--quiet", "-q", action="store_true", help="Suppress all output except errors"
+    )
+    parser.add_argument(
+        "--dpi", type=int, default=200, help="DPI for image rendering (default: 200)"
+    )
+    parser.add_argument(
+        "--pages", help="Page range to process, e.g., '1-3,5' (default: all)"
+    )
+    parser.add_argument(
+        "--concurrency", type=int, default=1, help="Parallel LLM requests (default: 1)"
+    )
+    parser.add_argument(
+        "--no-refine",
+        dest="refine",
+        action="store_false",
         help="Skip per-box crop re-OCR for low-confidence boxes (faster, less accurate on complex layouts)",
     )
     parser.add_argument(
-        "--max-image-dim", type=int, default=1024,
+        "--max-image-dim",
+        type=int,
+        default=1024,
         help="Longest-edge px cap for page images sent to the LLM (default: 1024). "
-             "Drop to ~640 for small local VLMs like GLM-OCR:1.1B that crash on larger inputs.",
+        "Drop to ~640 for small local VLMs like GLM-OCR:1.1B that crash on larger inputs.",
     )
     parser.add_argument(
-        "--dense-threshold", type=int, default=60,
+        "--dense-threshold",
+        type=int,
+        default=60,
         help="In --dense-mode auto, pages with more than this many detected boxes "
-             "use per-box OCR instead of full-page (default: 60). Per-box is more "
-             "accurate on dense handwritten content where the LLM otherwise loops "
-             "or hallucinates.",
+        "use per-box OCR instead of full-page (default: 60). Per-box is more "
+        "accurate on dense handwritten content where the LLM otherwise loops "
+        "or hallucinates.",
     )
     parser.add_argument(
-        "--dense-mode", choices=("auto", "always", "never"), default="auto",
+        "--dense-mode",
+        choices=("auto", "always", "never"),
+        default="auto",
         help="auto (default): per-box OCR for pages above --dense-threshold. "
-             "always: per-box for every page (slow but most accurate). "
-             "never: original full-page OCR everywhere.",
+        "always: per-box for every page (slow but most accurate). "
+        "never: original full-page OCR everywhere.",
     )
     parser.add_argument(
-        "--grounded", action="store_true",
+        "--grounded",
+        action="store_true",
         help="Use a bbox-native VLM (Qwen2.5-VL / Qwen3-VL / etc.) that returns text WITH "
-             "bounding boxes in one call. Skips Surya + DP + refine. Requires --model to be "
-             "a vision LLM that supports grounded output.",
+        "bounding boxes in one call. Skips Surya + DP + refine. Requires --model to be "
+        "a vision LLM that supports grounded output.",
     )
     parser.add_argument("--api-base", help="Override LLM API base URL")
-    parser.add_argument("--api-key", help="API Key for cloud LLM providers (e.g. litellm)")
+    parser.add_argument(
+        "--api-key", help="API Key for cloud LLM providers (e.g. litellm)"
+    )
     parser.add_argument("--model", help="Override LLM model name")
     parser.add_argument(
-        "--no-verify-model", dest="verify_model", action="store_false",
+        "--no-verify-model",
+        dest="verify_model",
+        action="store_false",
         help="Skip the pre-flight check that --model is loaded on the server. "
-             "By default we hit GET /v1/models and fail fast if the requested "
-             "model is missing — LM Studio otherwise silently falls back to "
-             "whatever model is loaded, producing subtly wrong OCR (issue #7). "
-             "Use this if your server doesn't implement /v1/models, or on "
-             "Ollama / vLLM (which auto-load on demand).",
+        "By default we hit GET /v1/models and fail fast if the requested "
+        "model is missing — LM Studio otherwise silently falls back to "
+        "whatever model is loaded, producing subtly wrong OCR (issue #7). "
+        "Use this if your server doesn't implement /v1/models, or on "
+        "Ollama / vLLM (which auto-load on demand).",
     )
     parser.set_defaults(refine=True, verify_model=True)
     return parser
@@ -145,14 +169,29 @@ async def run(args: argparse.Namespace, console: Console) -> None:
     else:
         pipeline = OCRPipeline(
             aligner=HybridAligner(),
-            ocr_processor=OCRProcessor(api_base=args.api_base, api_key=args.api_key, model=args.model),
+            ocr_processor=OCRProcessor(
+                api_base=args.api_base, api_key=args.api_key, model=args.model
+            ),
             pdf_handler=pdf_handler,
         )
 
     output_path = resolve_output_path(args.input_pdf, args.output_pdf)
 
     if args.verify_model:
-        is_cloud = args.model and (any(args.model.startswith(prefix) for prefix in ("openai/", "anthropic/", "gemini/", "deepseek/", "groq/", "vertex_ai/")) or (args.api_base and "api.openai.com" in args.api_base))
+        is_cloud = args.model and (
+            any(
+                args.model.startswith(prefix)
+                for prefix in (
+                    "openai/",
+                    "anthropic/",
+                    "gemini/",
+                    "deepseek/",
+                    "groq/",
+                    "vertex_ai/",
+                )
+            )
+            or (args.api_base and "api.openai.com" in args.api_base)
+        )
         if is_cloud:
             args.verify_model = False
 
@@ -163,7 +202,9 @@ async def run(args: argparse.Namespace, console: Console) -> None:
         # Print the error here too — main()'s outer except swallows the
         # message and only exits 1, which would leave the user staring
         # at a silent failure.
-        backend: Any = pipeline.grounded_backend if args.grounded else pipeline.ocr_processor
+        backend: Any = (
+            pipeline.grounded_backend if args.grounded else pipeline.ocr_processor
+        )
         try:
             await backend.ensure_model_loaded()
         except Exception as e:
@@ -185,15 +226,24 @@ async def run(args: argparse.Namespace, console: Console) -> None:
     with progress:
         tasks: dict[str, Any] = {}
 
-        async def on_progress(stage: str, current: int, total: int, message: str) -> None:
+        async def on_progress(
+            stage: str, current: int, total: int, message: str
+        ) -> None:
             if stage not in tasks:
                 tasks[stage] = progress.add_task(f"[cyan]{message}", total=total)
-            progress.update(tasks[stage], total=total, completed=current, description=f"[cyan]{message}")
+            progress.update(
+                tasks[stage],
+                total=total,
+                completed=current,
+                description=f"[cyan]{message}",
+            )
 
         try:
             await pipeline.run(
-                args.input_pdf, output_path,
-                dpi=args.dpi, pages=args.pages,
+                args.input_pdf,
+                output_path,
+                dpi=args.dpi,
+                pages=args.pages,
                 concurrency=args.concurrency,
                 refine=args.refine,
                 max_image_dim=args.max_image_dim,

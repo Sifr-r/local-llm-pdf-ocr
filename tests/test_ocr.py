@@ -58,11 +58,7 @@ class TestStripRunawayRepetition:
     def test_admits_legitimate_table_repetition(self):
         # HTML table from OlmOCR's "tables to HTML" instruction — many <tr>
         # tags are expected and shouldn't be clipped.
-        lines = (
-            ["<table>"]
-            + ["<tr>", "<td>x</td>", "</tr>"] * 10
-            + ["</table>"]
-        )
+        lines = ["<table>"] + ["<tr>", "<td>x</td>", "</tr>"] * 10 + ["</table>"]
         out = _strip_runaway_repetition(lines, max_repeat=20)
         assert out == lines, "10x table repetition must survive"
 
@@ -122,7 +118,10 @@ class TestHallucinationFilter:
         ocr._chat = _fake
         ocr.CROP_TIMEOUT_S = 60.0
         ocr.CROP_MAX_TOKENS = 256
-        assert asyncio.run(ocr.perform_ocr_on_crop("ignored")) == "real handwritten content"
+        assert (
+            asyncio.run(ocr.perform_ocr_on_crop("ignored"))
+            == "real handwritten content"
+        )
 
     def test_real_text_containing_pangram_is_preserved(self):
         # A document that legitimately contains the pangram (e.g. a typing
@@ -158,12 +157,13 @@ class TestHallucinationFilter:
         def _make_fake(response: str):
             async def _fake(*a, **kw):
                 return response
+
             return _fake
 
         for variant in (
-            'The quick brown fox jumps over the lazy dog!',
+            "The quick brown fox jumps over the lazy dog!",
             '"The quick brown fox jumps over the lazy dog."',
-            'the quick brown fox jumps over the lazy dog',
+            "the quick brown fox jumps over the lazy dog",
         ):
             ocr = OCRProcessor.__new__(OCRProcessor)
             ocr.client = None
@@ -181,12 +181,12 @@ def _fake_models_client(model_ids=None, raise_exc=None):
     Mirrors the SDK shape: ``await client.models.list()`` returns an object
     with a ``.data`` attribute that's a list of objects each with an ``.id``.
     """
+
     async def _list():
         if raise_exc is not None:
             raise raise_exc
-        return SimpleNamespace(
-            data=[SimpleNamespace(id=m) for m in (model_ids or [])]
-        )
+        return SimpleNamespace(data=[SimpleNamespace(id=m) for m in (model_ids or [])])
+
     return SimpleNamespace(models=SimpleNamespace(list=_list))
 
 

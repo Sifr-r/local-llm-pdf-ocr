@@ -37,7 +37,9 @@ class HybridAligner:
     def __init__(self):
         self.detection_predictor = DetectionPredictor()
 
-    def get_detected_boxes_batch(self, images_bytes_list: list[bytes]) -> list[list[BBox]]:
+    def get_detected_boxes_batch(
+        self, images_bytes_list: list[bytes]
+    ) -> list[list[BBox]]:
         """
         Run Surya detection on a batch of page images in a single call.
         Returns one list of normalized boxes per page, sorted in reading order.
@@ -52,14 +54,16 @@ class HybridAligner:
         all_boxes: list[list[BBox]] = []
         for (img_w, img_h), pred in zip(sizes, predictions, strict=False):
             boxes: list[BBox] = []
-            for bbox in (pred.bboxes or []):
+            for bbox in pred.bboxes or []:
                 x0, y0, x1, y1 = bbox.bbox
-                boxes.append([
-                    _clamp(x0 / img_w),
-                    _clamp(y0 / img_h),
-                    _clamp(x1 / img_w),
-                    _clamp(y1 / img_h),
-                ])
+                boxes.append(
+                    [
+                        _clamp(x0 / img_w),
+                        _clamp(y0 / img_h),
+                        _clamp(x1 / img_w),
+                        _clamp(y1 / img_h),
+                    ]
+                )
             # Stable row-major default. The actual reading-order choice for
             # the DP happens inside align_text, which tries both row-major
             # and column-major orderings and picks the lower-cost result.
@@ -146,15 +150,21 @@ class HybridAligner:
         is_zero_match = best_match_count == 0 and len(lines) > 1
         is_single_line_many_boxes = len(lines) == 1 and len(boxes) >= 5
         if is_zero_match or is_single_line_many_boxes:
-            reason = "no line→box matches" if is_zero_match else (
-                "LLM emitted a single line for many boxes — likely a model "
-                "variant that doesn't break visual lines"
+            reason = (
+                "no line→box matches"
+                if is_zero_match
+                else (
+                    "LLM emitted a single line for many boxes — likely a model "
+                    "variant that doesn't break visual lines"
+                )
             )
             logging.warning(
                 "Degenerate hybrid alignment: %s (lines=%d, boxes=%d). "
                 "Falling back to a full-page text layer so output stays "
                 "searchable. Try --grounded or a different --model.",
-                reason, len(lines), len(boxes),
+                reason,
+                len(lines),
+                len(boxes),
             )
             return [([0.0, 0.0, 1.0, 1.0], "\n".join(lines))]
 
@@ -228,10 +238,7 @@ def _reading_order_indices(boxes: list[BBox], depth: int = 0) -> list[int]:
     right_subboxes = [boxes[i] for i in right_indices]
     left_perm = _reading_order_indices(left_subboxes, depth + 1)
     right_perm = _reading_order_indices(right_subboxes, depth + 1)
-    return (
-        [left_indices[k] for k in left_perm]
-        + [right_indices[k] for k in right_perm]
-    )
+    return [left_indices[k] for k in left_perm] + [right_indices[k] for k in right_perm]
 
 
 def _reading_order_sort(boxes: list[BBox]) -> list[BBox]:

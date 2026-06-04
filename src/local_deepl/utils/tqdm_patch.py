@@ -16,6 +16,7 @@ class SilentTqdm:
     - Manual updates: pbar = tqdm(total=...); pbar.update()
     - Context manager: with tqdm(...) as pbar:
     """
+
     def __init__(self, iterable=None, **kwargs):
         self.iterable = iterable or []
 

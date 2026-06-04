@@ -26,6 +26,7 @@ def _make_tiny_b64_image() -> str:
     # to pass the refine-stage blank-crop guard. A pure-white image trips
     # is_blank_crop and short-circuits the refine path under test.
     from PIL import ImageDraw
+
     img = Image.new("RGB", (300, 300), "white")
     draw = ImageDraw.Draw(img)
     for y in range(0, 300, 20):
@@ -100,12 +101,12 @@ class TestDropRefinedDuplicates:
     def test_drops_exact_duplicate_in_adjacent_matched_box(self):
         # Refined text equals the matched neighbor — drop refined.
         boxes = [
-            (self._box(0), "HEALTH INTAKE FORM"),       # matched
-            (self._box(1), "HEALTH INTAKE FORM"),       # refined (dup)
+            (self._box(0), "HEALTH INTAKE FORM"),  # matched
+            (self._box(1), "HEALTH INTAKE FORM"),  # refined (dup)
         ]
         _drop_refined_duplicates(boxes, refined_indices={1})
-        assert boxes[0][1] == "HEALTH INTAKE FORM"      # matched kept
-        assert boxes[1][1] == ""                        # refined dropped
+        assert boxes[0][1] == "HEALTH INTAKE FORM"  # matched kept
+        assert boxes[1][1] == ""  # refined dropped
 
     def test_drops_substring_of_concatenated_neighbor(self):
         # The DP can attach a skip_line to a matched box, producing a
@@ -121,16 +122,19 @@ class TestDropRefinedDuplicates:
     def test_keeps_distinct_text_in_adjacent_box(self):
         # Two real entries that just happen to look similar — keep both.
         boxes = [
-            (self._box(0), "Vyvanse (25mg) daily for attention"),    # matched
-            (self._box(1), "Vyranse (25mg) daily for attention"),    # refined, real 2nd entry
+            (self._box(0), "Vyvanse (25mg) daily for attention"),  # matched
+            (
+                self._box(1),
+                "Vyranse (25mg) daily for attention",
+            ),  # refined, real 2nd entry
         ]
         _drop_refined_duplicates(boxes, refined_indices={1})
         assert boxes[1][1] == "Vyranse (25mg) daily for attention"
 
     def test_case_and_whitespace_normalized(self):
         boxes = [
-            (self._box(0), "Date: 9/14/19"),                # matched
-            (self._box(1), "  date:    9/14/19  "),         # refined, sloppy
+            (self._box(0), "Date: 9/14/19"),  # matched
+            (self._box(1), "  date:    9/14/19  "),  # refined, sloppy
         ]
         _drop_refined_duplicates(boxes, refined_indices={1})
         assert boxes[1][1] == ""
@@ -216,7 +220,11 @@ class TestOCRPipeline:
 
     async def test_refine_skips_when_disabled(self, make_stub_ocr):
         ocr = make_stub_ocr(page_lines=["single"])
-        aligner = _StubAligner(alignment=lambda s, lines: [(s[0][0], lines[0])] + [(b, "") for b, _ in s[1:]])
+        aligner = _StubAligner(
+            alignment=lambda s, lines: (
+                [(s[0][0], lines[0])] + [(b, "") for b, _ in s[1:]]
+            )
+        )
         pdf = _StubPDF(n_pages=1)
         pipe = OCRPipeline(aligner, ocr, pdf)
 
@@ -232,8 +240,11 @@ class TestOCRPipeline:
         pipe = OCRPipeline(aligner, ocr, pdf)
 
         await pipe.run(
-            "in.pdf", "out.pdf",
-            concurrency=3, refine=False, dense_mode="always",
+            "in.pdf",
+            "out.pdf",
+            concurrency=3,
+            refine=False,
+            dense_mode="always",
         )
 
         # 3 boxes × 2 pages = 6 per-box OCR calls. No full-page calls.
@@ -250,7 +261,10 @@ class TestOCRPipeline:
         pipe = OCRPipeline(aligner, ocr, pdf)
 
         await pipe.run(
-            "in.pdf", "out.pdf", refine=False, dense_mode="never",
+            "in.pdf",
+            "out.pdf",
+            refine=False,
+            dense_mode="never",
         )
         assert ocr.page_calls == 1
         assert ocr.crop_calls == 0
@@ -263,30 +277,39 @@ class TestOCRPipeline:
         # has enough pixel variance to pass the blank check.
         many_boxes = [
             [c * 0.10, r * 0.13, c * 0.10 + 0.09, r * 0.13 + 0.13]
-            for r in range(7) for c in range(10)
+            for r in range(7)
+            for c in range(10)
         ]
         aligner = _StubAligner(boxes_per_page=many_boxes)
         pdf = _StubPDF(n_pages=1)
         pipe = OCRPipeline(aligner, ocr, pdf)
 
         await pipe.run(
-            "in.pdf", "out.pdf",
-            concurrency=5, refine=False,
-            dense_mode="auto", dense_threshold=60,
+            "in.pdf",
+            "out.pdf",
+            concurrency=5,
+            refine=False,
+            dense_mode="auto",
+            dense_threshold=60,
         )
         # 70 boxes > 60 threshold → per-box; full-page OCR was NOT called.
         assert ocr.page_calls == 0
         assert ocr.crop_calls == 70
 
-    async def test_dense_mode_auto_keeps_full_page_for_sparse_pages(self, make_stub_ocr):
+    async def test_dense_mode_auto_keeps_full_page_for_sparse_pages(
+        self, make_stub_ocr
+    ):
         ocr = make_stub_ocr(page_lines=["fullpage line"], crop_text="per-box")
         aligner = _StubAligner()  # 3 boxes per page (sparse)
         pdf = _StubPDF(n_pages=1)
         pipe = OCRPipeline(aligner, ocr, pdf)
 
         await pipe.run(
-            "in.pdf", "out.pdf", refine=False,
-            dense_mode="auto", dense_threshold=60,
+            "in.pdf",
+            "out.pdf",
+            refine=False,
+            dense_mode="auto",
+            dense_threshold=60,
         )
         assert ocr.page_calls == 1
         assert ocr.crop_calls == 0
@@ -338,7 +361,9 @@ class TestOCRPipeline:
             captured["pages"] = dict(pages)
             captured["dpi"] = dpi
 
-        pipe = OCRPipeline(_StubAligner(), stub_ocr, _StubPDF(n_pages=1), output_writer=custom_writer)
+        pipe = OCRPipeline(
+            _StubAligner(), stub_ocr, _StubPDF(n_pages=1), output_writer=custom_writer
+        )
         await pipe.run("in.pdf", "out.pdf", dpi=250, refine=False)
 
         assert captured.get("called") is True

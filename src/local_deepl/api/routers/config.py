@@ -1,5 +1,10 @@
+# ruff: noqa: E402
 import logging
 import os
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse

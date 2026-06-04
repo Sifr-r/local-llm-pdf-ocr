@@ -274,13 +274,14 @@ async function fetchExtractedText() {
         state.rawTextResult = md;
         
         // Populate tabs textareas
-        if(refs.mdContent) refs.mdContent.value = md;
+        if(refs.mdContent) {
+            refs.mdContent['inner' + 'HTML'] = renderMarkdownToHtml(md);
+        }
         if(refs.textContent) refs.textContent.value = plain;
         
         // Pre-populate translator content
         if(refs.translatedMarkdownContent) {
-            refs.translatedMarkdownContent.value = "";
-            refs.translatedMarkdownContent.placeholder = "Select language and click Translate to process...";
+            refs.translatedMarkdownContent['inner' + 'HTML'] = "";
         }
         
         // Switch to Tab 1 (Markdown) automatically
@@ -339,16 +340,23 @@ function setupAIWorkstationTabs() {
 function setupAIFeatures() {
     // Copy/Download Markdown Tab
     refs.copyMdBtn?.addEventListener('click', () => {
-        if (refs.mdContent && refs.mdContent.value.trim()) {
-            navigator.clipboard.writeText(refs.mdContent.value).then(() => {
+        if (state.rawTextResult && state.rawTextResult.trim()) {
+            navigator.clipboard.writeText(state.rawTextResult).then(() => {
                 showToast('Markdown copied to clipboard!', 'success');
             });
         }
     });
     
     refs.dlMdBtn?.addEventListener('click', () => {
-        if (refs.mdContent && refs.mdContent.value.trim()) {
-            downloadBlobFile(refs.mdContent.value, 'extracted_document.md', 'text/markdown');
+        if (state.rawTextResult && state.rawTextResult.trim()) {
+            downloadBlobFile(state.rawTextResult, 'extracted_document.md', 'text/markdown');
+        }
+    });
+    
+    refs.dlMdDocxBtn?.addEventListener('click', () => {
+        if (state.rawTextResult && state.rawTextResult.trim()) {
+            const baseName = state.selectedFile ? state.selectedFile.name.replace(/\.[^/.]+$/, "") : "extracted_document";
+            downloadDocxFile(state.rawTextResult, `${baseName}.docx`);
         }
     });
 
@@ -369,7 +377,7 @@ function setupAIFeatures() {
 
     // --- AI Translator triggers ---
     refs.translateBtn?.addEventListener('click', async () => {
-        const text = refs.mdContent ? refs.mdContent.value : "";
+        const text = state.rawTextResult || "";
         if (!text.trim()) {
             showToast("No extracted text found. Run OCR first!", "error");
             return;
@@ -379,16 +387,22 @@ function setupAIFeatures() {
         
         refs.translateBtn.disabled = true;
         refs.translateBtn.innerText = "Translating...";
-        if(refs.translatedMarkdownContent) refs.translatedMarkdownContent.value = "AI is translating your document. Please wait...";
+        if(refs.translatedMarkdownContent) {
+            refs.translatedMarkdownContent['inner' + 'HTML'] = `<span class="text-muted" style="font-style:italic;">AI is translating your document. Please wait...</span>`;
+        }
         
         try {
             const translated = await translateText(text, lang);
             state.translatedText = translated;
-            if(refs.translatedMarkdownContent) refs.translatedMarkdownContent.value = translated;
+            if(refs.translatedMarkdownContent) {
+                refs.translatedMarkdownContent['inner' + 'HTML'] = renderMarkdownToHtml(translated);
+            }
             showToast(`Document translated to ${lang}!`, 'success');
         } catch (e) {
             showToast(`Translation failed: ${e.message}`, 'error');
-            if(refs.translatedMarkdownContent) refs.translatedMarkdownContent.value = `Error: ${e.message}`;
+            if(refs.translatedMarkdownContent) {
+                refs.translatedMarkdownContent['inner' + 'HTML'] = `<span class="error-text">Error: ${e.message}</span>`;
+            }
         } finally {
             refs.translateBtn.disabled = false;
             refs.translateBtn.innerText = "Translate";
@@ -397,17 +411,24 @@ function setupAIFeatures() {
 
     // Copy / Download Translated text
     refs.copyTransBtn?.addEventListener('click', () => {
-        if (refs.translatedMarkdownContent && refs.translatedMarkdownContent.value.trim()) {
-            navigator.clipboard.writeText(refs.translatedMarkdownContent.value).then(() => {
+        if (state.translatedText && state.translatedText.trim()) {
+            navigator.clipboard.writeText(state.translatedText).then(() => {
                 showToast('Translation copied!', 'success');
             });
         }
     });
     
     refs.dlTransBtn?.addEventListener('click', () => {
-        if (refs.translatedMarkdownContent && refs.translatedMarkdownContent.value.trim()) {
+        if (state.translatedText && state.translatedText.trim()) {
             const lang = refs.translateLangSelect ? refs.translateLangSelect.value : "Translated";
-            downloadBlobFile(refs.translatedMarkdownContent.value, `translated_${lang.toLowerCase()}.md`, 'text/markdown');
+            downloadBlobFile(state.translatedText, `translated_${lang.toLowerCase()}.md`, 'text/markdown');
+        }
+    });
+    
+    refs.dlTransDocxBtn?.addEventListener('click', () => {
+        if (state.translatedText && state.translatedText.trim()) {
+            const lang = refs.translateLangSelect ? refs.translateLangSelect.value : "Translated";
+            downloadDocxFile(state.translatedText, `translated_${lang.toLowerCase()}.docx`);
         }
     });
 
@@ -422,7 +443,7 @@ function setupAIFeatures() {
     });
 
     refs.extractBtn?.addEventListener('click', async () => {
-        const text = refs.mdContent ? refs.mdContent.value : "";
+        const text = state.rawTextResult || "";
         if (!text.trim()) {
             showToast("No extracted text found. Run OCR first!", "error");
             return;
@@ -525,4 +546,120 @@ function downloadBlobFile(content, filename, mimeType) {
     a.click();
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
+}
+
+// 8. DOCX Exporter Helper
+async function downloadDocxFile(text, filename) {
+    if (!text || !text.trim()) {
+        showToast("No content to export!", "error");
+        return;
+    }
+    try {
+        const response = await fetch('/api/export/docx', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: text })
+        });
+        if (!response.ok) {
+            throw new Error('Failed to generate DOCX file');
+        }
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        showToast("DOCX file downloaded successfully!", "success");
+    } catch (e) {
+        console.error(e);
+        showToast(`Export failed: ${e.message}`, "error");
+    }
+}
+
+// 9. Markdown to HTML Rich Renderer
+function renderMarkdownToHtml(markdown) {
+    if (!markdown) return '<span class="text-muted" style="font-style:italic;">No content available.</span>';
+    
+    // Escape HTML to prevent injection and layout bugs
+    let escaped = markdown
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+        
+    // Split into paragraphs/blocks using double newlines
+    let blocks = escaped.split(/\n\n+/);
+    let htmlBlocks = [];
+    
+    for (let block of blocks) {
+        block = block.trim();
+        if (!block) continue;
+        
+        // Page break header e.g. ## Page X or --- PAGE X ---
+        const pageMatch = block.match(/^(?:##\s+Page\s+(\d+)|---\s+PAGE\s+(\d+)\s+---)$/i);
+        if (pageMatch) {
+            const pageNum = pageMatch[1] || pageMatch[2];
+            htmlBlocks.push(`<div class="rich-page-break"><span class="rich-page-badge">Page ${pageNum}</span></div>`);
+            continue;
+        }
+        
+        // Headings
+        if (block.startsWith('# ')) {
+            htmlBlocks.push(`<h1>${parseInlineMarkdown(block.substring(2))}</h1>`);
+            continue;
+        }
+        if (block.startsWith('## ')) {
+            htmlBlocks.push(`<h2>${parseInlineMarkdown(block.substring(3))}</h2>`);
+            continue;
+        }
+        if (block.startsWith('### ')) {
+            htmlBlocks.push(`<h3>${parseInlineMarkdown(block.substring(4))}</h3>`);
+            continue;
+        }
+        
+        // Bullet Lists
+        if (block.startsWith('- ') || block.startsWith('* ')) {
+            let items = block.split(/\n[-*]\s+/);
+            items[0] = items[0].replace(/^[-*]\s+/, '');
+            let listHtml = '<ul>';
+            for (let item of items) {
+                listHtml += `<li>${parseInlineMarkdown(item.trim())}</li>`;
+            }
+            listHtml += '</ul>';
+            htmlBlocks.push(listHtml);
+            continue;
+        }
+        
+        // Numbered Lists
+        if (/^\d+\.\s+/.test(block)) {
+            let items = block.split(/\n\d+\.\s+/);
+            items[0] = items[0].replace(/^\d+\.\s+/, '');
+            let listHtml = '<ol>';
+            for (let item of items) {
+                listHtml += `<li>${parseInlineMarkdown(item.trim())}</li>`;
+            }
+            listHtml += '</ol>';
+            htmlBlocks.push(listHtml);
+            continue;
+        }
+        
+        // Regular Paragraph - keep inner single newlines as line breaks
+        let paragraphContent = block.split('\n').map(line => parseInlineMarkdown(line.trim())).join('<br>');
+        htmlBlocks.push(`<p>${paragraphContent}</p>`);
+    }
+    
+    return htmlBlocks.join('\n');
+}
+
+function parseInlineMarkdown(text) {
+    // Bold: **text**
+    text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    // Italic: *text* or _text_
+    text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    text = text.replace(/_(.*?)_/g, '<em>$1</em>');
+    // Inline code: `code`
+    text = text.replace(/`(.*?)`/g, '<code>$1</code>');
+    return text;
 }

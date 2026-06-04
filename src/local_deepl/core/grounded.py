@@ -49,10 +49,10 @@ ProgressCallback = Callable[[str, int, int, str], Awaitable[None]]
 
 @dataclass
 class GroundedBlock:
-    bbox: list[float]       # normalized [nx0, ny0, nx1, ny1] in 0..1
+    bbox: list[float]  # normalized [nx0, ny0, nx1, ny1] in 0..1
     text: str
     page_index: int
-    label: str = "text"     # filter: keep "text", drop "image"/"figure"
+    label: str = "text"  # filter: keep "text", drop "image"/"figure"
 
 
 @dataclass
@@ -83,16 +83,20 @@ class GroundedOCRBackend(Protocol):
 # the old handwritten fixture was pure "text" + "image". Instead of allow-
 # listing content labels (brittle across schema versions) we deny-list the
 # structural ones.
-_NON_CONTENT_LABELS = frozenset({
-    "image",
-    "empty_line",      # unfilled underline fields
-    "signature_line",  # form signature placeholder
-    "list_marker",     # lone bullet/dash glyphs
-})
+_NON_CONTENT_LABELS = frozenset(
+    {
+        "image",
+        "empty_line",  # unfilled underline fields
+        "signature_line",  # form signature placeholder
+        "list_marker",  # lone bullet/dash glyphs
+    }
+)
 
 
 def _rasterize_to_jpeg_pages(
-    path: str, max_image_dim: int, dpi: int,
+    path: str,
+    max_image_dim: int,
+    dpi: int,
 ) -> list[tuple[str, int, int]]:
     """Synchronous PDF/image rasterization — call via asyncio.to_thread.
 
@@ -151,7 +155,8 @@ def parse_zai_response(payload: dict[str, Any]) -> GroundedResponse:
     page_sizes = [(int(p["width"]), int(p["height"])) for p in pages]
 
     raw_items = [
-        b for b in d.get("layout", [])
+        b
+        for b in d.get("layout", [])
         if b.get("block_label", "text") not in _NON_CONTENT_LABELS
     ]
     swap = _detect_axis_order_zxyxy([b["bbox"] for b in raw_items]) == "yxyx"
@@ -169,13 +174,19 @@ def parse_zai_response(payload: dict[str, Any]) -> GroundedResponse:
         content = (b.get("block_content") or "").strip()
         if not content:
             continue
-        blocks.append(GroundedBlock(
-            bbox=[_clamp(x0 / pw), _clamp(y0 / ph),
-                  _clamp(x1 / pw), _clamp(y1 / ph)],
-            text=content,
-            page_index=pidx,
-            label=b.get("block_label", "text"),
-        ))
+        blocks.append(
+            GroundedBlock(
+                bbox=[
+                    _clamp(x0 / pw),
+                    _clamp(y0 / ph),
+                    _clamp(x1 / pw),
+                    _clamp(y1 / ph),
+                ],
+                text=content,
+                page_index=pidx,
+                label=b.get("block_label", "text"),
+            )
+        )
     return GroundedResponse(blocks=blocks, page_sizes=page_sizes)
 
 
@@ -201,7 +212,9 @@ def _detect_axis_order_zxyxy(raw_boxes: list[list[float]]) -> str:
     return "yxyx" if portrait > counted / 2 else "xyxy"
 
 
-def parse_glm_layout_details(payload_or_json: Any, page_index: int = 0) -> GroundedResponse:
+def parse_glm_layout_details(
+    payload_or_json: Any, page_index: int = 0
+) -> GroundedResponse:
     """
     Parse `layout_details` emitted by GLM-OCR via vLLM / self-hosted server,
     where each block has `bbox_2d: [x0, y0, x1, y1]` in pixel coords relative
@@ -235,12 +248,18 @@ def parse_glm_layout_details(payload_or_json: Any, page_index: int = 0) -> Groun
         if not content:
             continue
         x0, y0, x1, y1 = b["bbox_2d"]
-        blocks.append(GroundedBlock(
-            bbox=[_clamp(x0 / pw), _clamp(y0 / ph),
-                  _clamp(x1 / pw), _clamp(y1 / ph)],
-            text=content,
-            page_index=page_index,
-        ))
+        blocks.append(
+            GroundedBlock(
+                bbox=[
+                    _clamp(x0 / pw),
+                    _clamp(y0 / ph),
+                    _clamp(x1 / pw),
+                    _clamp(y1 / ph),
+                ],
+                text=content,
+                page_index=page_index,
+            )
+        )
     return GroundedResponse(blocks=blocks, page_sizes=page_sizes)
 
 
@@ -324,7 +343,9 @@ class ZAIHostedOCR:
                 poll_count += 1
                 if progress is not None:
                     await progress(
-                        "ocr", poll_count, max_polls,
+                        "ocr",
+                        poll_count,
+                        max_polls,
                         f"Z.AI OCR polling ({elapsed:.0f}s)...",
                     )
                 r = await client.get(
@@ -338,7 +359,9 @@ class ZAIHostedOCR:
                     return parse_zai_response(payload)
                 if status in ("failed", "error"):
                     raise RuntimeError(f"Z.AI OCR task failed: {payload}")
-            raise TimeoutError(f"Z.AI OCR task {task_id} did not complete in {self.timeout_s}s")
+            raise TimeoutError(
+                f"Z.AI OCR task {task_id} did not complete in {self.timeout_s}s"
+            )
 
 
 # --- prompted grounded backend (works with Qwen2.5-VL / Qwen3-VL / etc.) ---
@@ -363,12 +386,12 @@ DEFAULT_GROUNDING_PROMPT = (
     "  Linke\n"
     "  weiblich\n"
     "emit FOUR elements, one per line. Do NOT emit one element with "
-    "content \"schwache Grenzen im Kopf\" and another with \"Linke "
-    "weiblich\" — joining lines is wrong even when the resulting phrase "
+    'content "schwache Grenzen im Kopf" and another with "Linke '
+    'weiblich" — joining lines is wrong even when the resulting phrase '
     "reads naturally.\n"
     "\n"
     "Each element must have this exact shape: "
-    "{\"bbox_2d\": [x1, y1, x2, y2], \"content\": \"<text of that one line>\"} "
+    '{"bbox_2d": [x1, y1, x2, y2], "content": "<text of that one line>"} '
     "where bbox_2d is pixel coordinates in the image (x1<x2, y1<y2). The "
     "bbox height must match a single line of text. If your bbox is tall "
     "enough to contain two lines, you have joined two lines — split it "
@@ -415,7 +438,9 @@ class PromptedGroundedOCR:
         # Honor .env / environment overrides the same way OCRProcessor does,
         # so a user with `LLM_API_BASE` set in .env doesn't have to also pass
         # `--api-base` when switching to --grounded.
-        self.api_base: str = api_base or os.getenv("LLM_API_BASE") or "http://localhost:1234/v1"
+        self.api_base: str = (
+            api_base or os.getenv("LLM_API_BASE") or "http://localhost:1234/v1"
+        )
         self.model: str = model or os.getenv("LLM_MODEL") or "qwen/qwen3-vl-8b"
         self.api_key: str = api_key
         self.max_image_dim = max_image_dim
@@ -459,7 +484,10 @@ class PromptedGroundedOCR:
         # Offloaded to a worker thread — fitz.open / get_pixmap are blocking
         # CPU+IO work that would otherwise stall the event loop.
         page_imgs = await asyncio.to_thread(
-            _rasterize_to_jpeg_pages, pdf_path, self.max_image_dim, self.dpi,
+            _rasterize_to_jpeg_pages,
+            pdf_path,
+            self.max_image_dim,
+            self.dpi,
         )
 
         # 2. Call the VLM per page, streaming progress and isolating failures
@@ -482,15 +510,20 @@ class PromptedGroundedOCR:
                         temperature=0.0,
                         max_tokens=self.max_tokens,
                         timeout=self.timeout_s,
-                        messages=[{
-                            "role": "user",
-                            "content": [
-                                {"type": "text", "text": self.prompt},
-                                {"type": "image_url", "image_url": {
-                                    "url": f"data:image/jpeg;base64,{b64}",
-                                }},
-                            ],
-                        }],
+                        messages=[
+                            {
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": self.prompt},
+                                    {
+                                        "type": "image_url",
+                                        "image_url": {
+                                            "url": f"data:image/jpeg;base64,{b64}",
+                                        },
+                                    },
+                                ],
+                            }
+                        ],
                     )
                     text = (resp.choices[0].message.content or "").strip()
                     return page_idx, _parse_grounded_json(text, page_idx, w, h)
@@ -514,7 +547,9 @@ class PromptedGroundedOCR:
             completed += 1
             if progress is not None:
                 await progress(
-                    "ocr", completed, total_pages,
+                    "ocr",
+                    completed,
+                    total_pages,
                     f"Grounded OCR ({completed}/{total_pages})",
                 )
 
@@ -528,12 +563,17 @@ class PromptedGroundedOCR:
         )
 
 
-_JSON_FENCE = re.compile(r"```(?:json)?\s*(\[[\s\S]*?\]|\{[\s\S]*?\})\s*```", re.IGNORECASE)
+_JSON_FENCE = re.compile(
+    r"```(?:json)?\s*(\[[\s\S]*?\]|\{[\s\S]*?\})\s*```", re.IGNORECASE
+)
 _BARE_ARRAY = re.compile(r"(\[[\s\S]*\])")
 
 
 def _parse_grounded_json(
-    text: str, page_idx: int, img_w: int, img_h: int,
+    text: str,
+    page_idx: int,
+    img_w: int,
+    img_h: int,
 ) -> list[GroundedBlock]:
     """
     Extract a JSON array of `{bbox_2d, content}` blocks from a VLM response.
@@ -599,10 +639,16 @@ def _parse_grounded_json(
             continue
         if x1 <= x0 or y1 <= y0:
             continue
-        blocks.append(GroundedBlock(
-            bbox=[_clamp(x0 / img_w), _clamp(y0 / img_h),
-                  _clamp(x1 / img_w), _clamp(y1 / img_h)],
-            text=content,
-            page_index=page_idx,
-        ))
+        blocks.append(
+            GroundedBlock(
+                bbox=[
+                    _clamp(x0 / img_w),
+                    _clamp(y0 / img_h),
+                    _clamp(x1 / img_w),
+                    _clamp(y1 / img_h),
+                ],
+                text=content,
+                page_index=page_idx,
+            )
+        )
     return blocks

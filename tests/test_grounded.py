@@ -39,7 +39,8 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def test_grounded_pdf_rasterization_skips_intermediate_jpeg_decode(
-    example_pdfs: dict[str, Path], monkeypatch,
+    example_pdfs: dict[str, Path],
+    monkeypatch,
 ):
     """PDF pixmaps should convert directly before the final thumbnail JPEG."""
     original_open = Image.open
@@ -109,10 +110,16 @@ class TestParseZAIResponse:
         # Inject an empty block and confirm it's dropped.
         f = dict(fixture)
         f["data"] = dict(f["data"])
-        f["data"]["layout"] = list(f["data"]["layout"]) + [{
-            "block_content": "   ", "bbox": [0, 0, 100, 100],
-            "block_id": 999, "page_index": 0, "block_label": "text", "score": 0,
-        }]
+        f["data"]["layout"] = list(f["data"]["layout"]) + [
+            {
+                "block_content": "   ",
+                "bbox": [0, 0, 100, 100],
+                "block_id": 999,
+                "page_index": 0,
+                "block_label": "text",
+                "score": 0,
+            }
+        ]
         response = parse_zai_response(f)
         # Still 14 content blocks (whitespace-only block discarded).
         assert len(response.blocks) == 14
@@ -123,7 +130,11 @@ class TestParseGLMLayoutDetails:
         payload = {
             "data_info": {"pages": [{"width": 1000, "height": 2000}]},
             "layout_details": [
-                {"label": "text", "content": "Hello world", "bbox_2d": [100, 200, 500, 260]},
+                {
+                    "label": "text",
+                    "content": "Hello world",
+                    "bbox_2d": [100, 200, 500, 260],
+                },
                 {"label": "image", "content": "...", "bbox_2d": [0, 0, 100, 100]},
             ],
         }
@@ -136,7 +147,13 @@ class TestParseGLMLayoutDetails:
         payload = {
             "data_info": {"pages": [{"width": 1000, "height": 2000}]},
             "layout_details": [
-                [{"label": "text", "content": "On page 0", "bbox_2d": [0, 0, 500, 100]}],
+                [
+                    {
+                        "label": "text",
+                        "content": "On page 0",
+                        "bbox_2d": [0, 0, 500, 100],
+                    }
+                ],
             ],
         }
         response = parse_glm_layout_details(payload, page_index=0)
@@ -180,9 +197,15 @@ def test_pipeline_routes_to_grounded_when_backend_provided(
 ):
     """Grounded path skips Surya entirely — no aligner or ocr_processor needed."""
     marker_blocks = [
-        GroundedBlock(bbox=[0.10, 0.10, 0.60, 0.14], text="GROUNDED_ALPHA",  page_index=0),
-        GroundedBlock(bbox=[0.10, 0.30, 0.60, 0.34], text="GROUNDED_BETA",   page_index=0),
-        GroundedBlock(bbox=[0.10, 0.60, 0.60, 0.64], text="GROUNDED_GAMMA",  page_index=0),
+        GroundedBlock(
+            bbox=[0.10, 0.10, 0.60, 0.14], text="GROUNDED_ALPHA", page_index=0
+        ),
+        GroundedBlock(
+            bbox=[0.10, 0.30, 0.60, 0.34], text="GROUNDED_BETA", page_index=0
+        ),
+        GroundedBlock(
+            bbox=[0.10, 0.60, 0.60, 0.64], text="GROUNDED_GAMMA", page_index=0
+        ),
     ]
     backend = _StubGroundedBackend(marker_blocks, page_sizes=[(1000, 1300)])
 
@@ -232,7 +255,9 @@ def test_grounded_path_preserves_bbox_position(
     for w in hits:
         wr = fitz.Rect(w[0], w[1], w[2], w[3])
         inter = wr & expected_rect
-        assert not inter.is_empty, f"grounded marker at {list(wr)} outside {list(expected_rect)}"
+        assert not inter.is_empty, (
+            f"grounded marker at {list(wr)} outside {list(expected_rect)}"
+        )
         overlap = inter.get_area() / max(1e-6, wr.get_area())
         assert overlap >= 0.5, f"overlap too low: {overlap:.2f}"
 
@@ -267,10 +292,13 @@ def test_grounded_path_forwards_progress_callback(
         stages.append(stage)
 
     pipe = OCRPipeline(pdf_handler=PDFHandler(), grounded_backend=backend)
-    asyncio.run(pipe.run(
-        str(example_pdfs["digital.pdf"]), str(tmp_path / "out.pdf"),
-        progress=cb,
-    ))
+    asyncio.run(
+        pipe.run(
+            str(example_pdfs["digital.pdf"]),
+            str(tmp_path / "out.pdf"),
+            progress=cb,
+        )
+    )
 
     # Backend should have emitted "ocr" stage ticks via the forwarded callback,
     # and the pipeline should still emit "embed" for the output-writing phase.
@@ -300,16 +328,25 @@ class TestPromptedGroundedResilience:
                     raise RuntimeError("boom on page 1")
 
                 class _Choice:
-                    message = type("M", (), {"content": f'[{{"bbox_2d":[0,0,100,50],"content":"p{idx}"}}]'})
+                    message = type(
+                        "M",
+                        (),
+                        {"content": f'[{{"bbox_2d":[0,0,100,50],"content":"p{idx}"}}]'},
+                    )
+
                 class _Resp:
                     choices = [_Choice]
+
                 return _Resp
 
         # Monkey-patch AsyncOpenAI inside grounded.py to return our fake.
 
         class _FakeAsyncOpenAI:
-            def __init__(self, *a, **kw): pass
-            def __new__(cls, *a, **kw): return _FakeClient()
+            def __init__(self, *a, **kw):
+                pass
+
+            def __new__(cls, *a, **kw):
+                return _FakeClient()
 
         monkeypatch.setattr("openai.AsyncOpenAI", _FakeAsyncOpenAI)
 
@@ -321,6 +358,7 @@ class TestPromptedGroundedResilience:
         import io
 
         from PIL import Image
+
         def _tiny_b64():
             buf = io.BytesIO()
             Image.new("RGB", (64, 64), "white").save(buf, "JPEG")
@@ -340,7 +378,8 @@ class TestPromptedGroundedResilience:
 
                 page_imgs = [(_tiny_b64(), 100, 100)] * 3
                 client = AsyncOpenAI(
-                    base_url=self_.api_base, api_key=self_.api_key,
+                    base_url=self_.api_base,
+                    api_key=self_.api_key,
                     timeout=self_.timeout_s,
                 )
                 sem = _a.Semaphore(max(1, self_.concurrency))
@@ -350,13 +389,17 @@ class TestPromptedGroundedResilience:
                     async with sem:
                         try:
                             resp = await client.chat.completions.create(
-                                model=self_.model, temperature=0.0,
+                                model=self_.model,
+                                temperature=0.0,
                                 max_tokens=self_.max_tokens,
                                 messages=[{"role": "user", "content": []}],
                             )
                             text = (resp.choices[0].message.content or "").strip()
                             return page_idx, _g._parse_grounded_json(
-                                text, page_idx, 100, 100,
+                                text,
+                                page_idx,
+                                100,
+                                100,
                             )
                         except Exception:
                             return page_idx, []
@@ -399,12 +442,12 @@ class TestPromptedGroundedParser:
     def test_fenced_json_qwen25_vl_style(self):
         # Qwen2.5-VL wraps in ```json ... ```.
         raw = (
-            '```json\n'
-            '[\n'
+            "```json\n"
+            "[\n"
             '    {"bbox_2d": [40, 38, 175, 96], "content": "Algorithms,"},\n'
             '    {"bbox_2d": [68, 117, 226, 150], "content": "- computational"}\n'
-            ']\n'
-            '```'
+            "]\n"
+            "```"
         )
         blocks = _parse_grounded_json(raw, page_idx=0, img_w=800, img_h=1000)
         assert len(blocks) == 2
@@ -473,9 +516,7 @@ class TestPromptedGroundedEnsureModelLoaded:
                 data=[SimpleNamespace(id=m) for m in (model_ids or [])]
             )
 
-        fake_client = SimpleNamespace(
-            models=SimpleNamespace(list=_list)
-        )
+        fake_client = SimpleNamespace(models=SimpleNamespace(list=_list))
 
         def _fake_async_openai(*args, **kwargs):
             return fake_client

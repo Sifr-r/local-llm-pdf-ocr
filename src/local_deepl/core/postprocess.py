@@ -141,9 +141,7 @@ class DictionaryPostProcessor:
             dictionaries_dir = os.path.join(resources_dir, "dictionaries")
 
         # Fallback cache directories (if project root is read-only)
-        fallback_resources_dir = os.path.join(
-            os.path.expanduser("~"), ".local-deepl"
-        )
+        fallback_resources_dir = os.path.join(os.path.expanduser("~"), ".local-deepl")
         fallback_dictionaries_dir = os.path.join(fallback_resources_dir, "dictionaries")
 
         # Determine target dictionary file paths

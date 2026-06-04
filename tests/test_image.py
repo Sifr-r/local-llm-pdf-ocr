@@ -54,7 +54,7 @@ def test_crop_captures_painted_region():
     # Center pixel should be red-ish (JPEG compression is forgiving).
     cx, cy = out.width // 2, out.height // 2
     r, g, b = out.getpixel((cx, cy))
-    assert r > 150 and g < 100 and b < 100, f"expected red-ish, got {(r,g,b)}"
+    assert r > 150 and g < 100 and b < 100, f"expected red-ish, got {(r, g, b)}"
 
 
 def test_crop_clamps_out_of_range_bbox():
@@ -122,7 +122,9 @@ def test_crop_for_ocr_from_image_reuses_same_image():
     ⚡ Performance test: verify the same PIL Image can be reused across
     multiple crop calls without issues (the optimization's core behavior).
     """
-    img = _make_pil_image()  # red patch at (100..300, 400..600) = (0.125..0.375, 0.4..0.6)
+    img = (
+        _make_pil_image()
+    )  # red patch at (100..300, 400..600) = (0.125..0.375, 0.4..0.6)
     bboxes = [
         [0.1, 0.4, 0.4, 0.6],  # red patch region - has content
         [0.5, 0.1, 0.8, 0.3],  # blank region (no red pixels)

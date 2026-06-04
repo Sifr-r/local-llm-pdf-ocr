@@ -39,6 +39,7 @@ def test_surya_detects_boxes_on_examples(
     images = pdf_handler.convert_to_images(str(example_pdfs[name]))
 
     import base64
+
     image_bytes = [base64.b64decode(images[p]) for p in sorted(images)]
     batch = surya_aligner.get_detected_boxes_batch(image_bytes)
 
@@ -66,6 +67,7 @@ def test_detected_boxes_are_in_reading_order(
     pdf_handler = PDFHandler()
     images = pdf_handler.convert_to_images(str(example_pdfs[name]))
     import base64
+
     image_bytes = [base64.b64decode(images[p]) for p in sorted(images)]
     batch = surya_aligner.get_detected_boxes_batch(image_bytes)
 
@@ -128,8 +130,7 @@ def test_end_to_end_pipeline_produces_searchable_pdf(
     # At least one marker must survive into the output text layer — proves the
     # DP alignment placed stubbed LLM content into the sandwich PDF.
     assert "ZZMARKER" in full_text or "ZZCROPMARKER" in full_text, (
-        f"{name}: no markers recovered from output text layer; "
-        f"got {full_text[:300]!r}"
+        f"{name}: no markers recovered from output text layer; got {full_text[:300]!r}"
     )
 
 
@@ -137,10 +138,14 @@ def test_end_to_end_with_page_filter(
     surya_aligner, example_pdfs: dict[str, Path], tmp_path: Path
 ):
     """--pages 1 should produce an output whose page 0 is searchable."""
+
     class _Stub(OCRProcessor):
-        def __init__(self): pass
+        def __init__(self):
+            pass
+
         async def perform_ocr(self, image_base64, **kwargs):
             return ["ZZONLYPAGEONE marker", "second line"]
+
         async def perform_ocr_on_crop(self, image_base64, **kwargs):
             return "ZZCROP"
 
@@ -173,6 +178,7 @@ def _get_page_boxes(
     a different dpi yields differently-positioned boxes.
     """
     import base64
+
     images = pdf_handler.convert_to_images(str(pdf_path), dpi=dpi)
     image_bytes = [base64.b64decode(images[p]) for p in sorted(images)]
     all_boxes = surya_aligner.get_detected_boxes_batch(image_bytes)
@@ -259,9 +265,12 @@ def test_embedded_text_positionally_matches_aligned_boxes(
     lines = [f"UNIQUE{i:02d}tag and some body content to place" for i in range(n)]
 
     class _Stub(OCRProcessor):
-        def __init__(self): pass
+        def __init__(self):
+            pass
+
         async def perform_ocr(self, image_base64, **kwargs):
             return list(lines)
+
         async def perform_ocr_on_crop(self, image_base64, **kwargs):
             return "REFINED"
 
@@ -291,7 +300,10 @@ def test_embedded_text_positionally_matches_aligned_boxes(
                 if tag not in text:
                     continue
                 box_rect = fitz.Rect(
-                    box[0] * pw, box[1] * ph, box[2] * pw, box[3] * ph,
+                    box[0] * pw,
+                    box[1] * ph,
+                    box[2] * pw,
+                    box[3] * ph,
                 )
                 tag_words = [w for w in words if tag in w[4]]
                 assert tag_words, f"{name}: {tag} placed in box but not found in output"
@@ -315,7 +327,9 @@ def test_embedded_text_positionally_matches_aligned_boxes(
                     )
                 checked += 1
 
-        assert checked > 0, f"{name}: no tags landed in any box — DP produced empty alignment"
+        assert checked > 0, (
+            f"{name}: no tags landed in any box — DP produced empty alignment"
+        )
 
 
 def test_hybrid_form_no_consecutive_duplicate_lines(

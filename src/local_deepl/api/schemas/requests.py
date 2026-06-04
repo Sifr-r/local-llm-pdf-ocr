@@ -202,3 +202,18 @@ class ExtractionRequest(BaseModel):
         if not isinstance(value, str):
             raise ValueError("must be a string")
         return value.strip()
+
+
+class ExportDocxRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    text: str = ""
+
+    @field_validator("text", mode="before")
+    @classmethod
+    def validate_optional_strings(cls, value: Any) -> Any:
+        if value is None:
+            return value
+        if not isinstance(value, str):
+            raise ValueError("must be a string")
+        return value.strip()

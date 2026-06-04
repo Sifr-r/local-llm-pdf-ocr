@@ -30,9 +30,7 @@ def is_blank_crop(
     img = Image.open(io.BytesIO(base64.b64decode(image_base64))).convert("L")
     w, h = img.size
     nx0, ny0, nx1, ny1 = bbox
-    crop = img.crop(
-        (int(nx0 * w), int(ny0 * h), int(nx1 * w), int(ny1 * h))
-    )
+    crop = img.crop((int(nx0 * w), int(ny0 * h), int(nx1 * w), int(ny1 * h)))
     if crop.size[0] == 0 or crop.size[1] == 0:
         return True
     return ImageStat.Stat(crop).stddev[0] < std_threshold
@@ -68,8 +66,11 @@ def crop_for_ocr(
     """
     img = Image.open(io.BytesIO(base64.b64decode(image_base64))).convert("RGB")
     return crop_for_ocr_from_image(
-        img, bbox,
-        padding=padding, min_dim=min_dim, quality=quality,
+        img,
+        bbox,
+        padding=padding,
+        min_dim=min_dim,
+        quality=quality,
         std_threshold=std_threshold,
     )
 

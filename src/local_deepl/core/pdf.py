@@ -15,9 +15,18 @@ from pathlib import Path
 import fitz  # PyMuPDF
 from PIL import Image, ImageSequence
 
-IMAGE_EXTENSIONS = frozenset({
-    ".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp", ".avif",
-})
+IMAGE_EXTENSIONS = frozenset(
+    {
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".tif",
+        ".tiff",
+        ".bmp",
+        ".webp",
+        ".avif",
+    }
+)
 
 
 def _is_image_path(path: str | Path) -> bool:
@@ -33,6 +42,8 @@ class PDFHandler:
     - Embedding an invisible text layer to produce a "sandwich" PDF
       (image background + selectable/searchable text overlay)
     """
+
+    MAX_SAFE_PIXELS = 25_000_000
 
     def convert_to_images(
         self,
@@ -63,18 +74,9 @@ class PDFHandler:
         doc = fitz.open(pdf_path)
         try:
             for page_num, page in enumerate(doc):
-                # Cap DPI to prevent PyMuPDF OOM on massive pages (e.g. blueprints)
-                max_pixels = 25_000_000
-                page_area = page.rect.width * page.rect.height
-                page_pixels = page_area * (dpi / 72) ** 2
-                safe_dpi = dpi
-                if page_pixels > max_pixels:
-                    if page_area > 0:
-                        safe_dpi = int(72 * (max_pixels / page_area) ** 0.5)
-                        safe_dpi = max(72, min(dpi, safe_dpi))
-                    else:
-                        safe_dpi = 72
-
+                safe_dpi = self._calculate_safe_dpi(
+                    page.rect.width, page.rect.height, dpi
+                )
                 pix = page.get_pixmap(dpi=safe_dpi)
                 img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
                 img.thumbnail((max_image_dim, max_image_dim))
@@ -85,6 +87,21 @@ class PDFHandler:
         finally:
             doc.close()
         return images
+
+    @staticmethod
+    def _calculate_safe_dpi(width: float, height: float, requested_dpi: int) -> int:
+        """Cap DPI to prevent PyMuPDF OOM on massive pages (e.g. blueprints)."""
+        page_area = width * height
+        page_pixels = page_area * (requested_dpi / 72) ** 2
+
+        if page_pixels <= PDFHandler.MAX_SAFE_PIXELS:
+            return requested_dpi
+
+        if page_area <= 0:
+            return 72
+
+        safe_dpi = int(72 * (PDFHandler.MAX_SAFE_PIXELS / page_area) ** 0.5)
+        return max(72, min(requested_dpi, safe_dpi))
 
     @staticmethod
     def _images_from_image_file(path, max_image_dim: int) -> dict[int, str]:
@@ -135,18 +152,7 @@ class PDFHandler:
                 width = old_page.rect.width
                 height = old_page.rect.height
 
-                # Cap DPI to prevent PyMuPDF OOM on massive pages
-                max_pixels = 25_000_000
-                page_area = width * height
-                page_pixels = page_area * (dpi / 72) ** 2
-                safe_dpi = dpi
-                if page_pixels > max_pixels:
-                    if page_area > 0:
-                        safe_dpi = int(72 * (max_pixels / page_area) ** 0.5)
-                        safe_dpi = max(72, min(dpi, safe_dpi))
-                    else:
-                        safe_dpi = 72
-
+                safe_dpi = self._calculate_safe_dpi(width, height, dpi)
                 pix = old_page.get_pixmap(dpi=safe_dpi)
                 img_data = pix.tobytes("jpg", jpg_quality=80)
 
@@ -154,7 +160,9 @@ class PDFHandler:
                 new_page.insert_image(new_page.rect, stream=img_data)
 
                 for rect_coords, text in pages_data.get(page_num, []):
-                    self._draw_invisible_text(new_page, rect_coords, text, width, height)
+                    self._draw_invisible_text(
+                        new_page, rect_coords, text, width, height
+                    )
 
             new_doc.save(output_pdf_path)
         finally:
@@ -231,16 +239,22 @@ class PDFHandler:
         # clobber other bboxes' search positions, surfacing as
         # "following lines moved up" in the rendered output.
         is_full_page_fallback = (
-            nx0 <= 0.001 and ny0 <= 0.001
-            and nx1 >= 0.999 and ny1 >= 0.999
+            nx0 <= 0.001
+            and ny0 <= 0.001
+            and nx1 >= 0.999
+            and ny1 >= 0.999
             and "\n" in text
         )
         if is_full_page_fallback:
             fallback_rect = fitz.Rect(10, 10, page_width - 10, page_height - 10)
             page.insert_textbox(
-                fallback_rect, text,
-                fontsize=6, fontname="helv",
-                render_mode=3, color=(0, 0, 0), align=0,
+                fallback_rect,
+                text,
+                fontsize=6,
+                fontname="helv",
+                render_mode=3,
+                color=(0, 0, 0),
+                align=0,
             )
             return
 
@@ -257,7 +271,9 @@ class PDFHandler:
                     PDFHandler._draw_invisible_text(
                         page,
                         [nx0, ny0 + i * slice_h, nx1, ny0 + (i + 1) * slice_h],
-                        line, page_width, page_height,
+                        line,
+                        page_width,
+                        page_height,
                     )
                 return
             text = lines[0] if lines else text  # only one non-empty line
@@ -319,7 +335,9 @@ class PDFHandler:
                 PDFHandler._draw_invisible_text(
                     page,
                     [nx0, ny0 + i * slice_h, nx1, ny0 + (i + 1) * slice_h],
-                    line_text, page_width, page_height,
+                    line_text,
+                    page_width,
+                    page_height,
                 )
             return
 
@@ -346,8 +364,11 @@ class PDFHandler:
         # at pdf_rect.x0 + target_width.
         morph = (baseline, fitz.Matrix(scale_x, 1.0))
         page.insert_text(
-            baseline, text,
-            fontsize=fontsize, fontname="helv",
-            render_mode=3, color=(0, 0, 0),
+            baseline,
+            text,
+            fontsize=fontsize,
+            fontname="helv",
+            render_mode=3,
+            color=(0, 0, 0),
             morph=morph,
         )

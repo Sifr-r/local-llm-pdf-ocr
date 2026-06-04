@@ -43,6 +43,7 @@ const refs = {
     workspaceTextLayer: document.getElementById('workspace-text-layer'),
     workspaceViewportWelcome: document.getElementById('workspace-viewport-welcome'),
     workspaceCanvasContainer: document.getElementById('workspace-canvas-container'),
+    headerWkToolbar: document.getElementById('header-wk-toolbar'),
     
     // Top workspace header controls
     ribbonCurrentPage: document.getElementById('ribbon-current-page'),
@@ -114,6 +115,7 @@ const refs = {
     dlTxtBtn: document.getElementById('dl-txt-btn'),
     copyMdBtn: document.getElementById('copy-md-btn'),
     dlMdBtn: document.getElementById('dl-md-btn'),
+    dlMdDocxBtn: document.getElementById('dl-md-docx-btn'),
     
     // Translation features
     translateLangSelect: document.getElementById('translate-lang-select'),
@@ -121,6 +123,7 @@ const refs = {
     translatedMarkdownContent: document.getElementById('translated-markdown-content'),
     copyTransBtn: document.getElementById('copy-trans-btn'),
     dlTransBtn: document.getElementById('dl-trans-btn'),
+    dlTransDocxBtn: document.getElementById('dl-trans-docx-btn'),
     
     // Structured Data extraction features
     extractorTemplateSelect: document.getElementById('extractor-template-select'),

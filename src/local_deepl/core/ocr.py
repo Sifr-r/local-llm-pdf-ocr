@@ -158,8 +158,15 @@ class OCRProcessor:
     CROP_TIMEOUT_S: float = 60.0
     CROP_MAX_TOKENS: int = 256
 
-    def __init__(self, api_base: str | None = None, api_key: str | None = None, model: str | None = None):
-        self.api_base: str = api_base or os.getenv("LLM_API_BASE") or "http://localhost:1234/v1"
+    def __init__(
+        self,
+        api_base: str | None = None,
+        api_key: str | None = None,
+        model: str | None = None,
+    ):
+        self.api_base: str = (
+            api_base or os.getenv("LLM_API_BASE") or "http://localhost:1234/v1"
+        )
         self.api_key: str = api_key or os.getenv("LLM_API_KEY") or "lm-studio"
         self.model: str = model or os.getenv("LLM_MODEL") or "allenai/olmocr-2-7b"
         self.client = AsyncOpenAI(base_url=self.api_base, api_key=self.api_key)
@@ -183,7 +190,13 @@ class OCRProcessor:
                 _format_model_not_loaded(self.api_base, self.model, loaded)
             )
 
-    async def perform_ocr(self, image_base64: str, self_correction: bool = False, binarize: bool = False, dual_engine: bool = False) -> list[str]:
+    async def perform_ocr(
+        self,
+        image_base64: str,
+        self_correction: bool = False,
+        binarize: bool = False,
+        dual_engine: bool = False,
+    ) -> list[str]:
         """
         OCR a full page image. Returns a list of non-empty lines in reading order.
 
@@ -194,7 +207,9 @@ class OCRProcessor:
         max_tokens set, and pollutes downstream alignment with junk lines.
         """
         if binarize:
-            image_base64 = await asyncio.to_thread(self._apply_adaptive_threshold, image_base64)
+            image_base64 = await asyncio.to_thread(
+                self._apply_adaptive_threshold, image_base64
+            )
 
         prompt = OLMOCR_PAGE_PROMPT
         if dual_engine:
@@ -203,7 +218,8 @@ class OCRProcessor:
                 prompt = DUAL_ENGINE_PAGE_PROMPT.replace("{draft_text}", draft)
 
         text = await self._chat(
-            prompt, image_base64,
+            prompt,
+            image_base64,
             timeout=self.PAGE_TIMEOUT_S,
             max_tokens=self.PAGE_MAX_TOKENS,
         )
@@ -213,7 +229,8 @@ class OCRProcessor:
         if self_correction:
             correction_prompt = CORRECTION_PAGE_PROMPT.replace("{draft_text}", text)
             text = await self._chat(
-                correction_prompt, image_base64,
+                correction_prompt,
+                image_base64,
                 timeout=self.PAGE_TIMEOUT_S,
                 max_tokens=self.PAGE_MAX_TOKENS,
             )
@@ -224,14 +241,22 @@ class OCRProcessor:
         lines = [line.strip() for line in body.split("\n") if line.strip()]
         return _strip_runaway_repetition(lines)
 
-    async def perform_ocr_on_crop(self, image_base64: str, self_correction: bool = False, binarize: bool = False, dual_engine: bool = False) -> str:
+    async def perform_ocr_on_crop(
+        self,
+        image_base64: str,
+        self_correction: bool = False,
+        binarize: bool = False,
+        dual_engine: bool = False,
+    ) -> str:
         """
         OCR a single cropped box region. Returns a single whitespace-joined
         string (the crop is small, so we don't try to preserve line structure).
         Empty-string for blank/uncertain crops (filtered hallucination).
         """
         if binarize:
-            image_base64 = await asyncio.to_thread(self._apply_adaptive_threshold, image_base64)
+            image_base64 = await asyncio.to_thread(
+                self._apply_adaptive_threshold, image_base64
+            )
 
         prompt = CROP_PROMPT
         if dual_engine:
@@ -240,7 +265,8 @@ class OCRProcessor:
                 prompt = DUAL_ENGINE_CROP_PROMPT.replace("{draft_text}", draft)
 
         text = await self._chat(
-            prompt, image_base64,
+            prompt,
+            image_base64,
             timeout=self.CROP_TIMEOUT_S,
             max_tokens=self.CROP_MAX_TOKENS,
         )
@@ -250,7 +276,8 @@ class OCRProcessor:
         if self_correction:
             correction_prompt = CORRECTION_CROP_PROMPT.replace("{draft_text}", text)
             text = await self._chat(
-                correction_prompt, image_base64,
+                correction_prompt,
+                image_base64,
                 timeout=self.CROP_TIMEOUT_S,
                 max_tokens=self.CROP_MAX_TOKENS,
             )
@@ -301,7 +328,14 @@ class OCRProcessor:
             return (response.choices[0].message.content or "").strip()
         except Exception as e:
             err_msg = str(e)
-            if any(term in err_msg.lower() for term in ("context size", "context_length_exceeded", "context length")):
+            if any(
+                term in err_msg.lower()
+                for term in (
+                    "context size",
+                    "context_length_exceeded",
+                    "context length",
+                )
+            ):
                 raise LLMCallError(
                     f"LLM OCR call failed due to Context Size Limit. "
                     f"Please load the model in LM Studio and increase the 'Context Length' in the right-side panel "
@@ -309,8 +343,7 @@ class OCRProcessor:
                     f"Underlying error: {e}"
                 ) from e
             raise LLMCallError(
-                f"LLM OCR call failed against {self.api_base} "
-                f"({type(e).__name__}): {e}"
+                f"LLM OCR call failed against {self.api_base} ({type(e).__name__}): {e}"
             ) from e
 
     def _get_tesseract_draft(self, image_base64: str) -> str:
@@ -349,11 +382,11 @@ class OCRProcessor:
                 img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 21, 15
             )
 
-            success, encoded = cv2.imencode('.png', binary)
+            success, encoded = cv2.imencode(".png", binary)
             if not success:
                 return image_base64
 
-            return base64.b64encode(encoded.tobytes()).decode('utf-8')
+            return base64.b64encode(encoded.tobytes()).decode("utf-8")
         except Exception:
             return image_base64
 
@@ -391,7 +424,9 @@ def _strip_runaway_repetition(lines: list[str], max_repeat: int = 20) -> list[st
             "(worst offender: %r occurred %d times). The model likely "
             "got stuck on this page; output may be incomplete. "
             "Try lowering --max-image-dim or switching --model.",
-            truncated, worst[0][:60], worst[1],
+            truncated,
+            worst[0][:60],
+            worst[1],
         )
     return out
 
@@ -455,7 +490,7 @@ def _strip_yaml_front_matter(text: str) -> str:
     close_idx = rest.find("\n---")
     if close_idx == -1:
         return text  # malformed; return as-is
-    body = rest[close_idx + len("\n---"):]
+    body = rest[close_idx + len("\n---") :]
     # Remove optional closing ``` if it was part of a markdown fence
     body = re.sub(r"^\s*```\n?", "", body)
     # Trim the newline directly after the closing fence.

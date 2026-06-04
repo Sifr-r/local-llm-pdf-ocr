@@ -35,7 +35,9 @@ def test_convert_to_images_produces_base64_per_page(
     # Each value should be decodable base64 of a non-empty image.
     for page_num, b64 in images.items():
         raw = base64.b64decode(b64)
-        assert len(raw) > 256, f"{name} page {page_num}: suspiciously small ({len(raw)} bytes)"
+        assert len(raw) > 256, (
+            f"{name} page {page_num}: suspiciously small ({len(raw)} bytes)"
+        )
 
 
 def test_embed_structured_text_produces_searchable_pdf(
@@ -55,7 +57,9 @@ def test_embed_structured_text_produces_searchable_pdf(
         text = doc[0].get_text("text")
     finally:
         doc.close()
-    assert marker in text, f"expected marker {marker!r} in embedded text; got {text[:200]!r}"
+    assert marker in text, (
+        f"expected marker {marker!r} in embedded text; got {text[:200]!r}"
+    )
 
 
 def test_embed_handles_empty_text_gracefully(
@@ -103,21 +107,24 @@ def test_output_preserves_page_count(
 def _make_image_file(path: Path, size=(800, 1000), mode="RGB") -> Path:
     """Write a simple JPEG/PNG/TIFF with some content to `path`."""
     from PIL import Image, ImageDraw
+
     img = Image.new(mode, size, "white")
     draw = ImageDraw.Draw(img)
     draw.rectangle([100, 200, 700, 300], fill="lightgray")
-    fmt = {"jpg": "JPEG", "jpeg": "JPEG", "png": "PNG",
-           "tif": "TIFF", "tiff": "TIFF"}[path.suffix.lower().lstrip(".")]
+    fmt = {"jpg": "JPEG", "jpeg": "JPEG", "png": "PNG", "tif": "TIFF", "tiff": "TIFF"}[
+        path.suffix.lower().lstrip(".")
+    ]
     img.save(path, format=fmt)
     return path
 
 
 def _make_multiframe_tiff(path: Path, n_frames: int = 3, size=(600, 800)) -> Path:
     from PIL import Image, ImageDraw
+
     frames = []
     for i in range(n_frames):
         img = Image.new("RGB", size, "white")
-        ImageDraw.Draw(img).text((50, 50), f"Page {i+1}", fill="black")
+        ImageDraw.Draw(img).text((50, 50), f"Page {i + 1}", fill="black")
         frames.append(img)
     frames[0].save(path, format="TIFF", save_all=True, append_images=frames[1:])
     return path
@@ -135,6 +142,7 @@ def test_convert_image_file_to_single_page(
     import io
 
     from PIL import Image as PILImage
+
     raw = base64.b64decode(images[0])
     img = PILImage.open(io.BytesIO(raw))
     assert img.size[0] > 0 and img.size[1] > 0
@@ -183,6 +191,7 @@ def test_embed_multiframe_tiff_produces_multipage_pdf(
 
 def test_image_extension_detection():
     from local_deepl.core.pdf import _is_image_path
+
     assert _is_image_path("scan.jpg")
     assert _is_image_path("SCAN.JPEG")
     assert _is_image_path("pages.tiff")
@@ -219,8 +228,8 @@ def test_is_blank_crop_distinguishes_blank_from_text(tmp_path: Path):
     img.save(buf, format="JPEG", quality=85)
     b64 = base64.b64encode(buf.getvalue()).decode()
 
-    blank_bbox = [0.05, 0.05, 0.95, 0.45]   # top half — dots only
-    text_bbox = [0.10, 0.70, 0.90, 0.85]    # bottom half — solid text
+    blank_bbox = [0.05, 0.05, 0.95, 0.45]  # top half — dots only
+    text_bbox = [0.10, 0.70, 0.90, 0.85]  # bottom half — solid text
     assert is_blank_crop(b64, blank_bbox), "dotted background must be blank"
     assert not is_blank_crop(b64, text_bbox), "solid text region must not be blank"
 
@@ -228,6 +237,7 @@ def test_is_blank_crop_distinguishes_blank_from_text(tmp_path: Path):
 def test_avif_input_round_trip(pdf_handler: PDFHandler, tmp_path: Path):
     """AVIF input must decode and embed end-to-end (pillow-avif-plugin)."""
     from PIL import Image, ImageDraw
+
     img = Image.new("RGB", (800, 1000), "white")
     ImageDraw.Draw(img).rectangle([100, 200, 700, 300], fill="lightgray")
     src = tmp_path / "scan.avif"

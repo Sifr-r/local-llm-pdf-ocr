@@ -1,7 +1,20 @@
 LITELLM_KNOWN_PREFIXES = (
-    "openai/", "anthropic/", "gemini/", "deepseek/", "groq/", "vertex_ai/",
-    "ollama/", "huggingface/", "vllm/", "bedrock/", "sagemaker/", "azure/",
-    "together_ai/", "replicate/", "mistral/", "cohere/",
+    "openai/",
+    "anthropic/",
+    "gemini/",
+    "deepseek/",
+    "groq/",
+    "vertex_ai/",
+    "ollama/",
+    "huggingface/",
+    "vllm/",
+    "bedrock/",
+    "sagemaker/",
+    "azure/",
+    "together_ai/",
+    "replicate/",
+    "mistral/",
+    "cohere/",
 )
 
 

@@ -38,6 +38,7 @@ dependencies = [
     # the first Surya import. Listed here until surya fixes it upstream.
     "requests>=2.31",
     "pyspellchecker>=0.8.1",
+    "python-docx>=1.1.0",
 ]
 
 [project.optional-dependencies]

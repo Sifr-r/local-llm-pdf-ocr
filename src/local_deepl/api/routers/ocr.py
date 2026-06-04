@@ -9,7 +9,7 @@ import uuid
 from typing import Any, cast
 
 from fastapi import APIRouter, File, Form, Header, Query, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import ValidationError
 from starlette.background import BackgroundTask
 
@@ -21,6 +21,7 @@ from local_deepl import (
     PromptedGroundedOCR,
 )
 from local_deepl.api.schemas import (
+    ExportDocxRequest,
     ExtractionRequest,
     ProcessSettings,
     TranslationRequest,
@@ -625,3 +626,22 @@ async def get_translation_status(job_id: str):
         response["error"] = SERVER_ERROR_MESSAGE
 
     return response
+
+
+@router.post("/api/export/docx")
+async def export_docx(body: ExportDocxRequest):
+    """
+    Export raw markdown text directly to a Word Document (.docx) file.
+    """
+    try:
+        from local_deepl.core.docx_writer import convert_markdown_to_docx
+
+        docx_stream = convert_markdown_to_docx(body.text)
+        return StreamingResponse(
+            docx_stream,
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={"Content-Disposition": 'attachment; filename="document.docx"'},
+        )
+    except Exception:
+        logger.exception("Docx export failed")
+        return _stable_server_error()

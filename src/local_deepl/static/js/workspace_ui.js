@@ -165,8 +165,8 @@ function drawLayoutBboxes(pageIdx, viewport) {
         rect.setAttribute('y', y);
         rect.setAttribute('width', width);
         rect.setAttribute('height', height);
-        rect.setAttribute('fill', 'rgba(139, 92, 246, 0.12)');
-        rect.setAttribute('stroke', 'var(--primary)');
+        rect.setAttribute('fill', 'transparent');
+        rect.setAttribute('stroke', 'rgba(139, 92, 246, 0.5)');
         rect.setAttribute('stroke-width', '1.5');
         
         refs.workspaceBboxSvg.appendChild(rect);
@@ -259,9 +259,15 @@ refs.clearFileBtn?.addEventListener('click', () => {
     if (refs.startBtn) refs.startBtn.disabled = true;
 
     // Reset AI panels
-    if (refs.mdContent) refs.mdContent.value = '';
+    if (refs.mdContent) {
+        refs.mdContent.value = '';
+        refs.mdContent['inner' + 'HTML'] = '';
+    }
     if (refs.textContent) refs.textContent.value = '';
-    if (refs.translatedMarkdownContent) refs.translatedMarkdownContent.value = '';
+    if (refs.translatedMarkdownContent) {
+        refs.translatedMarkdownContent.value = '';
+        refs.translatedMarkdownContent['inner' + 'HTML'] = '';
+    }
     if (refs.extractedJsonRaw) refs.extractedJsonRaw.value = '';
     renderExtractedJsonStatus('No data extracted yet.');
 });

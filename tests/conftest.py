@@ -44,6 +44,7 @@ def example_pdfs(examples_dir: Path) -> dict[str, Path]:
 def surya_aligner():
     """Load HybridAligner once per session — Surya init is expensive."""
     from local_deepl.core.aligner import HybridAligner
+
     return HybridAligner()
 
 
@@ -55,7 +56,9 @@ class _StubOCR:
     crops. Also records every call so tests can assert on behaviour.
     """
 
-    def __init__(self, page_lines: list[str] | None = None, crop_text: str = "recovered"):
+    def __init__(
+        self, page_lines: list[str] | None = None, crop_text: str = "recovered"
+    ):
         self.page_lines = page_lines or [
             "Section heading",
             "First paragraph of body text with several words.",
