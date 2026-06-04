@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import socket
 from types import SimpleNamespace
@@ -162,4 +163,4 @@ def test_extract_data_robust_json_parsing():
                 )
             )
 
-        assert response == {}
+        assert response == {"extracted_data": {}}

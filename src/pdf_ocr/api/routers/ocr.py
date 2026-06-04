@@ -1,6 +1,8 @@
 import asyncio
+import json
 import logging
 import os
+import re
 import tempfile
 import time
 import uuid
@@ -18,7 +20,11 @@ from pdf_ocr import (
     PDFHandler,
     PromptedGroundedOCR,
 )
-from pdf_ocr.api.schemas import ProcessSettings
+from pdf_ocr.api.schemas import (
+    ExtractionRequest,
+    ProcessSettings,
+    TranslationRequest,
+)
 from pdf_ocr.api.services.artifacts import (
     ArtifactAccessDeniedError,
     ArtifactNotFoundError,
