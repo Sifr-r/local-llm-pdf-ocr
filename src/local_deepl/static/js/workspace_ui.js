@@ -193,6 +193,16 @@ function loadPdfJs() {
 }
 
 // 6. Navigation ribbon events wiring
+function setZoomLevel(newZoom) {
+    workspaceState.zoomLevel = Math.round(newZoom * 10) / 10;
+    if (refs.ribbonZoomLabel) refs.ribbonZoomLabel.textContent = `${Math.round(workspaceState.zoomLevel * 100)}%`;
+    if (workspaceState.pdfDoc) {
+        renderWorkspacePage(workspaceState.currentPageIdx + 1);
+    } else if (workspaceState.activeFile) {
+        renderWorkspaceImage(workspaceState.activeFile);
+    }
+}
+
 refs.ribbonPrevPage?.addEventListener('click', () => {
     if (workspaceState.currentPageIdx > 0) {
         renderWorkspacePage(workspaceState.currentPageIdx);
@@ -207,37 +217,18 @@ refs.ribbonNextPage?.addEventListener('click', () => {
 
 refs.ribbonZoomIn?.addEventListener('click', () => {
     if (workspaceState.zoomLevel < 3.0) {
-        workspaceState.zoomLevel = Math.round((workspaceState.zoomLevel + 0.1) * 10) / 10;
-        if(refs.ribbonZoomLabel) refs.ribbonZoomLabel.textContent = `${Math.round(workspaceState.zoomLevel * 100)}%`;
-        if (workspaceState.pdfDoc) {
-            renderWorkspacePage(workspaceState.currentPageIdx + 1);
-        } else if (workspaceState.activeFile) {
-            renderWorkspaceImage(workspaceState.activeFile);
-        }
+        setZoomLevel(workspaceState.zoomLevel + 0.1);
     }
 });
 
 refs.ribbonZoomOut?.addEventListener('click', () => {
     if (workspaceState.zoomLevel > 0.5) {
-        workspaceState.zoomLevel = Math.round((workspaceState.zoomLevel - 0.1) * 10) / 10;
-        if(refs.ribbonZoomLabel) refs.ribbonZoomLabel.textContent = `${Math.round(workspaceState.zoomLevel * 100)}%`;
-        if (workspaceState.pdfDoc) {
-            renderWorkspacePage(workspaceState.currentPageIdx + 1);
-        } else if (workspaceState.activeFile) {
-            renderWorkspaceImage(workspaceState.activeFile);
-        }
+        setZoomLevel(workspaceState.zoomLevel - 0.1);
     }
 });
 
 refs.ribbonFitWidth?.addEventListener('click', () => {
-    // Basic automatic fit-to-width toggle
-    workspaceState.zoomLevel = 1.0;
-    if(refs.ribbonZoomLabel) refs.ribbonZoomLabel.textContent = '100%';
-    if (workspaceState.pdfDoc) {
-        renderWorkspacePage(workspaceState.currentPageIdx + 1);
-    } else if (workspaceState.activeFile) {
-        renderWorkspaceImage(workspaceState.activeFile);
-    }
+    setZoomLevel(1.0);
 });
 
 // Clear active document completely

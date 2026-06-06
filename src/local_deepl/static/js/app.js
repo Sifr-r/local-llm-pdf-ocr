@@ -536,8 +536,7 @@ function renderExtractedVisualCards(json) {
 }
 
 // 7. General Download Blob helper
-function downloadBlobFile(content, filename, mimeType) {
-    const blob = new Blob([content], { type: mimeType });
+function downloadBlob(blob, filename) {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -546,6 +545,11 @@ function downloadBlobFile(content, filename, mimeType) {
     a.click();
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
+}
+
+function downloadBlobFile(content, filename, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
+    downloadBlob(blob, filename);
 }
 
 // 8. DOCX Exporter Helper
@@ -564,14 +568,7 @@ async function downloadDocxFile(text, filename) {
             throw new Error('Failed to generate DOCX file');
         }
         const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
+        downloadBlob(blob, filename);
         showToast("DOCX file downloaded successfully!", "success");
     } catch (e) {
         console.error(e);

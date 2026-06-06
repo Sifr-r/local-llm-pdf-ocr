@@ -1,0 +1,18 @@
+{
+  "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+  "entry": [
+    "src/local_deepl/static/js/app.js",
+    "src/local_deepl/static/js/state_and_api.js",
+    "src/local_deepl/static/js/workspace_ui.js",
+    "src/local_deepl/static/index.html"
+  ],
+  "rules": {
+    "unresolved-imports": "off",
+    "unused-files": "off"
+  },
+  "health": {
+    "ignore": [
+      "**/*"
+    ]
+  }
+}
