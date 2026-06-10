@@ -5,10 +5,12 @@ from pydantic import ValidationError
 
 from local_deepl.api.schemas import ConfigUpdate, ProcessSettings
 from local_deepl.core.processors import (
+    LayoutEnrichmentProcessor,
     QualityAnalysisProcessor,
     ReadingOrderProcessor,
     SectionAnalysisProcessor,
     StructureAnalysisProcessor,
+    TableExtractionProcessor,
     build_document_processors,
 )
 
@@ -31,6 +33,13 @@ def _process_settings(**overrides):
         "dual_engine": False,
         "spellcheck": "none",
         "cross_page": False,
+        "preprocess_pages": False,
+        "orientation_detection": False,
+        "deskew": False,
+        "denoise": False,
+        "normalize_contrast": False,
+        "crop_cleanup": False,
+        "quality_routing": False,
     }
     values.update(overrides)
     return ProcessSettings.model_validate(values)
@@ -39,7 +48,8 @@ def _process_settings(**overrides):
 def test_process_settings_accepts_comma_separated_document_processors():
     settings = _process_settings(
         document_processors=(
-            "reading_order, quality_analysis, structure_analysis, section_analysis"
+            "reading_order, quality_analysis, structure_analysis, section_analysis, "
+            "layout_enrichment, table_extraction"
         )
     )
 
@@ -48,6 +58,8 @@ def test_process_settings_accepts_comma_separated_document_processors():
         "quality_analysis",
         "structure_analysis",
         "section_analysis",
+        "layout_enrichment",
+        "table_extraction",
     ]
 
 
@@ -71,6 +83,8 @@ def test_build_document_processors_maps_allowed_names():
             "quality_analysis",
             "structure_analysis",
             "section_analysis",
+            "layout_enrichment",
+            "table_extraction",
         ]
     )
 
@@ -78,3 +92,5 @@ def test_build_document_processors_maps_allowed_names():
     assert isinstance(processors[1], QualityAnalysisProcessor)
     assert isinstance(processors[2], StructureAnalysisProcessor)
     assert isinstance(processors[3], SectionAnalysisProcessor)
+    assert isinstance(processors[4], LayoutEnrichmentProcessor)
+    assert isinstance(processors[5], TableExtractionProcessor)

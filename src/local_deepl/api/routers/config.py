@@ -61,6 +61,13 @@ _config: dict = {
     "dual_engine": _env_bool("OCR_DUAL_ENGINE", False),
     "spellcheck": os.getenv("OCR_SPELLCHECK", "none"),
     "cross_page": _env_bool("OCR_CROSS_PAGE", False),
+    "preprocess_pages": _env_bool("OCR_PREPROCESS_PAGES", False),
+    "orientation_detection": _env_bool("OCR_ORIENTATION_DETECTION", False),
+    "deskew": _env_bool("OCR_DESKEW", False),
+    "denoise": _env_bool("OCR_DENOISE", False),
+    "normalize_contrast": _env_bool("OCR_NORMALIZE_CONTRAST", False),
+    "crop_cleanup": _env_bool("OCR_CROP_CLEANUP", False),
+    "quality_routing": _env_bool("OCR_QUALITY_ROUTING", False),
     "document_processors": [],
 }
 

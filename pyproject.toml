@@ -24,7 +24,6 @@ dependencies = [
     "pillow>=11.3",
     "pymupdf>=1.26.7",
     "python-dotenv>=1.2.1",
-    "rich>=14.2.0",
     "tqdm>=4.67.1",
     "surya-ocr>=0.17.0",
     "torch>=2.0.0",
@@ -64,7 +63,6 @@ translation = [
 ]
 
 [project.scripts]
-local-deepl = "local_deepl.cli:main"
 local-deepl-server = "local_deepl.server:main"
 
 [project.urls]

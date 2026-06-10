@@ -12,7 +12,7 @@ import logging
 
 from local_deepl.utils import tqdm_patch
 
-# Silence Surya's progress bars so they don't collide with Rich.
+# Silence Surya's progress bars for clean server output.
 tqdm_patch.apply()
 
 from PIL import Image  # noqa: E402
@@ -173,7 +173,7 @@ class HybridAligner:
             logging.warning(
                 "Degenerate hybrid alignment: %s (lines=%d, boxes=%d). "
                 "Falling back to a full-page text layer so output stays "
-                "searchable. Try --grounded or a different --model.",
+                "searchable. Try grounded mode or a different model.",
                 reason,
                 len(lines),
                 len(boxes),

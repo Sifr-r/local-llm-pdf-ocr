@@ -8,7 +8,6 @@ This file tells coding agents and contributors how to work with this repository.
 uv sync
 uv sync --extra web
 uv sync --extra web --extra async-translation
-uv run local-deepl input.pdf
 uv run local-deepl-server --port 8000
 ```
 
@@ -34,12 +33,11 @@ uv run mypy src
 
 - Python 3.11 or newer. Use `uv`; do not install dependencies with `pip`.
 - Prefer self-documenting code and docstrings. Add comments only when they clarify non-obvious behavior.
-- Preserve lazy imports for heavy modules in CLI entry points so `--help` remains fast.
 - Keep `tqdm_patch.apply()` before `from surya.detection import DetectionPredictor` in `core/aligner.py`.
 - Keep bboxes normalized as `[x0, y0, x1, y1]` in `0..1` until `PDFHandler.embed_structured_text`.
 - Treat image inputs as first-class inputs. PDF and image paths share the output writer.
-- Keep CLI and web capabilities distinct: advanced enhancement settings are wired through the web router and `OCRPipeline`, but not exposed as CLI flags.
-- Keep local document processors selectable through web/API `document_processors`. Current names are `reading_order`, `quality_analysis`, `structure_analysis`, and `section_analysis`; defaults run no processors.
+- LocalDeepL is Web UI/API-first. Do not add or restore a user-facing CLI OCR workflow.
+- Keep local document processors selectable through web/API `document_processors`. Current names are `reading_order`, `quality_analysis`, `structure_analysis`, `section_analysis`, `layout_enrichment`, and `table_extraction`; defaults run no processors.
 
 ## Pipeline Paths
 
@@ -58,11 +56,13 @@ PDF/image -> grounded bbox-native VLM -> post-process -> DocumentResult -> optio
 
 | File | Role |
 | --- | --- |
-| `src/local_deepl/cli.py` | CLI parser and Rich progress output |
 | `src/local_deepl/server.py` | FastAPI application and server entry point |
 | `src/local_deepl/pipeline.py` | Shared hybrid and grounded orchestration |
 | `src/local_deepl/core/document.py` | Normalized DocumentResult IR and legacy pages-data adapter |
 | `src/local_deepl/core/processors.py` | Local deterministic document processors and user-facing processor builder |
+| `src/local_deepl/core/preprocessing.py` | Local hybrid-path page preprocessing |
+| `src/local_deepl/core/routing.py` | Quality routing recommendation metadata |
+| `src/local_deepl/core/evaluation.py` | Local evaluation metric helpers |
 | `src/local_deepl/core/aligner.py` | Surya detection and DP alignment |
 | `src/local_deepl/core/ocr.py` | LiteLLM OCR calls, prompts, limits, and filters |
 | `src/local_deepl/core/pdf.py` | PDF/image conversion and sandwich-PDF embedding |
@@ -73,6 +73,8 @@ PDF/image -> grounded bbox-native VLM -> post-process -> DocumentResult -> optio
 | `src/local_deepl/resources/dictionaries/` | Packaged spellcheck dictionaries |
 | `src/local_deepl/api/routers/ocr.py` | OCR, translation, extraction, and job routes |
 | `src/local_deepl/api/services/document_metadata.py` | Token-bound metadata report artifacts for optional document processor outputs |
+| `src/local_deepl/api/services/document_exports.py` | Token-bound document export artifacts |
+| `src/local_deepl/api/services/workflow.py` | Web/API workflow summaries |
 | `src/local_deepl/api/routers/config.py` | Runtime configuration and model discovery |
 | `src/local_deepl/utils/security.py` | SSRF target validation |
 | `src/local_deepl/utils/litellm_provider.py` | LiteLLM provider selection |

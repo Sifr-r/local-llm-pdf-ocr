@@ -22,6 +22,7 @@ from local_deepl import (
     build_document_processors,
 )
 from local_deepl.api.schemas import (
+    DocumentExportRequest,
     ExportDocxRequest,
     ExtractionRequest,
     ProcessSettings,
@@ -34,6 +35,12 @@ from local_deepl.api.services.artifacts import (
     PageText,
     TextArtifactHandle,
     TextArtifactStore,
+)
+from local_deepl.api.services.document_exports import (
+    EXPORT_MEDIA_TYPES,
+    build_document_export,
+    load_json_file,
+    write_document_export_atomic,
 )
 from local_deepl.api.services.document_metadata import (
     build_document_metadata_report,
@@ -48,6 +55,12 @@ from local_deepl.api.services.security import (
     cleanup_files,
     save_validated_upload,
 )
+from local_deepl.api.services.workflow import build_workflow_summary
+from local_deepl.core.preprocessing import (
+    LocalPagePreprocessor,
+    PagePreprocessingOptions,
+)
+from local_deepl.core.routing import QualityRoutingOptions
 from local_deepl.core.translation_config import AsyncTranslationUnavailable
 from local_deepl.utils import is_ssrf_target
 
@@ -58,6 +71,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 _text_artifacts = TextArtifactStore()
 _metadata_artifacts = TextArtifactStore()
+_export_artifacts = TextArtifactStore()
 _job_history = JobHistory()
 _progress_service = ProgressService()
 
@@ -234,6 +248,13 @@ async def process_pdf(
     dual_engine: str | None = Form(None),
     spellcheck: str | None = Form(None),
     cross_page: str | None = Form(None),
+    preprocess_pages: str | None = Form(None),
+    orientation_detection: str | None = Form(None),
+    deskew: str | None = Form(None),
+    denoise: str | None = Form(None),
+    normalize_contrast: str | None = Form(None),
+    crop_cleanup: str | None = Form(None),
+    quality_routing: str | None = Form(None),
     document_processors: str | None = Form(None),
 ):
     """
@@ -279,6 +300,23 @@ async def process_pdf(
                 "cross_page": cross_page
                 if cross_page is not None
                 else _config["cross_page"],
+                "preprocess_pages": preprocess_pages
+                if preprocess_pages is not None
+                else _config["preprocess_pages"],
+                "orientation_detection": orientation_detection
+                if orientation_detection is not None
+                else _config["orientation_detection"],
+                "deskew": deskew if deskew is not None else _config["deskew"],
+                "denoise": denoise if denoise is not None else _config["denoise"],
+                "normalize_contrast": normalize_contrast
+                if normalize_contrast is not None
+                else _config["normalize_contrast"],
+                "crop_cleanup": crop_cleanup
+                if crop_cleanup is not None
+                else _config["crop_cleanup"],
+                "quality_routing": quality_routing
+                if quality_routing is not None
+                else _config["quality_routing"],
                 "document_processors": document_processors
                 if document_processors is not None
                 else _config["document_processors"],
@@ -313,6 +351,20 @@ async def process_pdf(
         processors = build_document_processors(
             processor.value for processor in settings.document_processors
         )
+        preprocessing_options = PagePreprocessingOptions(
+            enabled=settings.preprocess_pages,
+            orientation_detection=settings.orientation_detection,
+            deskew=settings.deskew,
+            denoise=settings.denoise,
+            normalize_contrast=settings.normalize_contrast,
+            crop_cleanup=settings.crop_cleanup,
+        )
+        page_preprocessor = (
+            LocalPagePreprocessor() if preprocessing_options.enabled else None
+        )
+        quality_routing_options = QualityRoutingOptions(
+            enabled=settings.quality_routing
+        )
         backend: Any
         if settings.pipeline_mode == "grounded":
             backend = PromptedGroundedOCR(
@@ -332,6 +384,7 @@ async def process_pdf(
                 pdf_handler=PDFHandler(),
                 grounded_backend=backend,
                 document_processors=processors,
+                page_preprocessor=page_preprocessor,
             )
         else:
             # Default: hybrid mode
@@ -340,17 +393,19 @@ async def process_pdf(
                 api_key=settings.api_key,
                 model=settings.model,
             )
-        pipeline = OCRPipeline(
-            aligner=HybridAligner(),
-            ocr_processor=backend,
-            pdf_handler=PDFHandler(),
-            document_processors=processors,
-        )
+            pipeline = OCRPipeline(
+                aligner=HybridAligner(),
+                ocr_processor=backend,
+                pdf_handler=PDFHandler(),
+                document_processors=processors,
+                page_preprocessor=page_preprocessor,
+            )
 
         # Verify model
         verify = _config.get("verify_model", True)
 
-        # Automatically skip verification for cloud models since /v1/models is an LM Studio/Ollama extension
+        # Automatically skip verification for cloud models since /v1/models
+        # is an LM Studio/Ollama extension.
         # LiteLLM prefixes or known cloud hosts indicate it's not a local server.
         is_cloud = (
             any(
@@ -397,6 +452,8 @@ async def process_pdf(
             dual_engine=settings.dual_engine,
             spellcheck=settings.spellcheck,
             cross_page=settings.cross_page,
+            preprocessing_options=preprocessing_options,
+            quality_routing_options=quality_routing_options,
             progress=on_progress,
         )
 
@@ -431,6 +488,9 @@ async def process_pdf(
         )
         response.headers["X-Text-Artifact-Id"] = artifact_handle.artifact_id
         response.headers["X-Text-Artifact-Token"] = artifact_handle.token
+        response.headers["X-Document-Workflow"] = json.dumps(
+            build_workflow_summary(settings), separators=(",", ":"), sort_keys=True
+        )
         if metadata_handle is not None:
             response.headers["X-Document-Metadata-Artifact-Id"] = (
                 metadata_handle.artifact_id
@@ -545,6 +605,76 @@ async def get_document_metadata(
     return JSONResponse(
         status_code=404, content={"error": "Document metadata not found"}
     )
+
+
+@router.post("/api/export/document")
+async def create_document_export(body: DocumentExportRequest):
+    try:
+        text_path = _text_artifacts.get(
+            body.text_artifact_id, body.text_artifact_token
+        )
+        page_text = await asyncio.to_thread(load_json_file, text_path)
+        metadata = None
+        if body.metadata_artifact_id and body.metadata_artifact_token:
+            metadata_path = _metadata_artifacts.get(
+                body.metadata_artifact_id, body.metadata_artifact_token
+            )
+            metadata = await asyncio.to_thread(load_json_file, metadata_path)
+
+        payload = build_document_export(
+            page_text=cast(dict[str, list[str]], page_text),
+            metadata=cast(dict[str, Any] | None, metadata),
+            export_format=body.export_format,
+        )
+        artifact_id = _export_artifacts.issue_id()
+        token = _export_artifacts.issue_token()
+        path = await asyncio.to_thread(
+            write_document_export_atomic,
+            payload,
+            directory=_export_artifacts.artifact_dir,
+            artifact_id=artifact_id,
+            export_format=body.export_format,
+        )
+        handle = _export_artifacts.put(artifact_id=artifact_id, token=token, path=path)
+        return {
+            "artifact_id": handle.artifact_id,
+            "token": handle.token,
+            "format": body.export_format,
+        }
+    except ArtifactAccessDeniedError:
+        return JSONResponse(status_code=403, content={"error": "Export access denied"})
+    except (InvalidArtifactReferenceError, ArtifactNotFoundError):
+        return JSONResponse(status_code=404, content={"error": "Export input not found"})
+
+
+@router.get("/export/{artifact_id}")
+async def get_document_export(
+    artifact_id: str,
+    token: str | None = Query(default=None),
+    authorization: str | None = Header(default=None),
+):
+    access_token = _extract_bearer_token(authorization) or token
+    if not access_token:
+        return JSONResponse(status_code=403, content={"error": "Export access denied"})
+
+    try:
+        export_path = _export_artifacts.get(artifact_id, access_token)
+    except (InvalidArtifactReferenceError, ArtifactNotFoundError):
+        return JSONResponse(status_code=404, content={"error": "Export not found"})
+    except ArtifactAccessDeniedError:
+        return JSONResponse(status_code=403, content={"error": "Export access denied"})
+
+    suffix = os.path.splitext(export_path)[1].lstrip(".")
+    media_type = "application/json"
+    if suffix == "md":
+        media_type = EXPORT_MEDIA_TYPES["markdown"]
+    elif suffix == "txt":
+        media_type = EXPORT_MEDIA_TYPES["text"]
+
+    exists = await asyncio.to_thread(_path_exists, export_path)
+    if exists:
+        return FileResponse(export_path, media_type=media_type)
+    return JSONResponse(status_code=404, content={"error": "Export not found"})
 
 
 # ---- AI Translation & Schema Extraction ----------------------------------

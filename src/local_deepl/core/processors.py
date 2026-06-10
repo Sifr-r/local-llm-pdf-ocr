@@ -13,13 +13,15 @@ from collections import Counter
 from collections.abc import Callable, Iterable, Sequence
 from typing import Protocol
 
-from local_deepl.core.document import DocumentBlock, DocumentResult
+from local_deepl.core.document import DocumentBlock, DocumentPage, DocumentResult
 
 LOCAL_DOCUMENT_PROCESSOR_NAMES = (
     "reading_order",
     "quality_analysis",
     "structure_analysis",
     "section_analysis",
+    "layout_enrichment",
+    "table_extraction",
 )
 
 _KEY_VALUE_RE = re.compile(r"^\s*([^:\n]{1,50}):\s*(\S.+)$")
@@ -331,6 +333,147 @@ class SectionAnalysisProcessor:
         return uppercase_ratio >= 0.65 or title_words >= max(1, len(words) // 2)
 
 
+class LayoutEnrichmentProcessor:
+    """Attach local page-region and document-layout labels to blocks."""
+
+    name = "layout_enrichment"
+
+    async def process(self, document: DocumentResult) -> DocumentResult:
+        for page in document.pages:
+            counts: Counter[str] = Counter()
+            for block in page.blocks:
+                role, region, confidence, signals = self._classify(block)
+                block.metadata["layout"] = {
+                    "role": role,
+                    "region": region,
+                    "confidence": confidence,
+                    "signals": signals,
+                }
+                counts[role] += 1
+
+            page.metadata["layout"] = {
+                "roles": dict(sorted(counts.items())),
+                "has_figures": counts["figure"] > 0,
+                "has_captions": counts["caption"] > 0,
+                "has_headers": counts["header"] > 0,
+                "has_footers": counts["footer"] > 0,
+            }
+        return document
+
+    def _classify(self, block: DocumentBlock) -> tuple[str, str, float, list[str]]:
+        text = _normalize_space(block.text)
+        lower = text.lower()
+        x0, y0, x1, _y1 = block.bbox
+        region = _page_region(block.bbox)
+        kind = _structure_kind(block)
+        signals: list[str] = [f"region:{region}"]
+
+        if region == "header" and text and len(text) <= 120:
+            return "header", region, 0.72, signals + ["top_short_text"]
+        if region == "footer":
+            if text.isdecimal() or lower.startswith(("page ", "p. ")):
+                return "page_number", region, 0.82, signals + ["footer_page_number"]
+            if text and len(text) <= 140:
+                return "footer", region, 0.7, signals + ["bottom_short_text"]
+        if lower.startswith(("figure ", "fig. ", "table ", "caption:")):
+            return "caption", region, 0.82, signals + ["caption_prefix"]
+        if kind == "heading" and y0 < 0.28:
+            return "title_block", region, 0.76, signals + ["early_heading"]
+        if not text and _bbox_area(block.bbox) >= 0.08:
+            return "figure", region, 0.58, signals + ["large_empty_region"]
+
+        width = x1 - x0
+        if width < 0.32:
+            region = f"{region}_side"
+            signals.append("narrow_column")
+        return "body", region, 0.5, signals
+
+
+class TableExtractionProcessor:
+    """Extract simple local table structures from aligned OCR boxes."""
+
+    name = "table_extraction"
+
+    def __init__(self, row_tolerance: float = 0.018, min_columns: int = 2):
+        if row_tolerance <= 0:
+            raise ValueError("row_tolerance must be positive")
+        if min_columns < 2:
+            raise ValueError("min_columns must be at least 2")
+        self.row_tolerance = row_tolerance
+        self.min_columns = min_columns
+
+    async def process(self, document: DocumentResult) -> DocumentResult:
+        for page in document.pages:
+            candidate_indices = [
+                index
+                for index, block in enumerate(page.blocks)
+                if self._is_candidate(block)
+            ]
+            page.metadata["tables"] = self._extract_page_tables(page, candidate_indices)
+        return document
+
+    def _is_candidate(self, block: DocumentBlock) -> bool:
+        text = _normalize_space(block.text)
+        if not text:
+            return False
+        if _structure_kind(block) == "table_candidate":
+            return True
+        return len(_TABLE_SPLIT_RE.split(text)) >= self.min_columns
+
+    def _extract_page_tables(
+        self, page: DocumentPage, candidate_indices: list[int]
+    ) -> list[dict[str, object]]:
+        if not candidate_indices:
+            return []
+
+        rows: list[list[int]] = []
+        for block_index in candidate_indices:
+            block = page.blocks[block_index]
+            center_y = (block.bbox[1] + block.bbox[3]) / 2
+            for row in rows:
+                row_center = sum(
+                    (page.blocks[i].bbox[1] + page.blocks[i].bbox[3]) / 2 for i in row
+                ) / len(row)
+                if abs(center_y - row_center) <= self.row_tolerance:
+                    row.append(block_index)
+                    break
+            else:
+                rows.append([block_index])
+
+        rows = [sorted(row, key=lambda i: page.blocks[i].bbox[0]) for row in rows]
+        rows.sort(key=lambda row: page.blocks[row[0]].bbox[1])
+        if len(rows) < 2 or max(len(row) for row in rows) < self.min_columns:
+            return []
+
+        cells: list[dict[str, object]] = []
+        for row_index, row in enumerate(rows):
+            for column_index, block_index in enumerate(row):
+                block = page.blocks[block_index]
+                block.metadata["table"] = {
+                    "table_index": 0,
+                    "row_index": row_index,
+                    "column_index": column_index,
+                }
+                cells.append(
+                    {
+                        "row_index": row_index,
+                        "column_index": column_index,
+                        "block_index": block_index,
+                        "text": block.text,
+                        "bbox": block.bbox,
+                    }
+                )
+
+        return [
+            {
+                "table_index": 0,
+                "row_count": len(rows),
+                "column_count": max(len(row) for row in rows),
+                "cells": cells,
+            }
+        ]
+
+
 def build_document_processors(names: Iterable[str]) -> tuple[DocumentProcessor, ...]:
     """Instantiate known local document processors by user-facing name."""
 
@@ -339,6 +482,8 @@ def build_document_processors(names: Iterable[str]) -> tuple[DocumentProcessor, 
     registry.register("quality_analysis", QualityAnalysisProcessor)
     registry.register("structure_analysis", StructureAnalysisProcessor)
     registry.register("section_analysis", SectionAnalysisProcessor)
+    registry.register("layout_enrichment", LayoutEnrichmentProcessor)
+    registry.register("table_extraction", TableExtractionProcessor)
     return tuple(registry.create(name) for name in names)
 
 
@@ -353,6 +498,15 @@ def _structure_kind(block: DocumentBlock) -> str:
 
 def _normalize_space(text: str) -> str:
     return " ".join(text.split())
+
+
+def _page_region(bbox: Sequence[float]) -> str:
+    _x0, y0, _x1, y1 = bbox
+    if y1 <= 0.16:
+        return "header"
+    if y0 >= 0.84:
+        return "footer"
+    return "body"
 
 
 def _bbox_area(bbox: Sequence[float]) -> float:

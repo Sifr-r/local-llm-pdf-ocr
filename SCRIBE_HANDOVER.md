@@ -106,12 +106,27 @@ export work because it sits after OCR cleanup but before PDF embedding.
   Defaults remain unchanged: no processors run unless selected.
 - Focused API safety coverage lives in `tests/test_api_safety.py`.
 
+## Stage 5-12 Status
+
+- Removed the user-facing CLI workflow. `local-deepl-server` is the supported
+  application entrypoint; LocalDeepL is Web UI/API-first.
+- Added opt-in local preprocessing controls for the hybrid image path:
+  orientation detection, deskew, denoise, contrast normalization, and crop
+  cleanup.
+- Added `layout_enrichment` and `table_extraction` processors. They attach
+  metadata only and preserve searchable PDF text behavior by default.
+- Added token-bound document export artifacts for JSON, Markdown, plain text,
+  Docling-compatible JSON, and MinerU-compatible JSON.
+- Added default-off quality routing metadata and deterministic workflow
+  summaries for Web/API runs.
+- Added local evaluation metrics for future benchmark reports.
+
 ## Next Stage Prep
 
 - Keep LangGraph orchestration outside processor internals. Future stages should use
   plain Python processors and deterministic `DocumentResult` transforms.
-- Natural next targets are richer table detection, key-value extraction
-  scaffolding, or a UI panel that consumes the new metadata artifact.
+- Natural next targets are richer model-backed table detection, key-value
+  extraction scaffolding, and deeper benchmark fixtures.
 - Prefer extending `core/processors.py` and the existing
   `document_processors` API field before adding new route-specific flags.
 - Preserve defaults: no document processors run unless explicitly selected.

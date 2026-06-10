@@ -34,7 +34,9 @@ from PIL import Image
 
 from local_deepl.core.document import DocumentResult
 from local_deepl.core.grounded import GroundedOCRBackend
+from local_deepl.core.preprocessing import PagePreprocessingOptions, PagePreprocessor
 from local_deepl.core.processors import DocumentProcessor, run_document_processors
+from local_deepl.core.routing import QualityRoutingOptions, QualityRoutingPolicy
 from local_deepl.utils.image import crop_for_ocr_from_image
 
 ProgressCallback = Callable[[str, int, int, str], Awaitable[None]]
@@ -73,6 +75,7 @@ class OCRPipeline:
         output_writer: OutputWriter | None = None,
         grounded_backend: GroundedOCRBackend | None = None,
         document_processors: Sequence[DocumentProcessor] | None = None,
+        page_preprocessor: PagePreprocessor | None = None,
     ):
         """
         When `grounded_backend` is provided, `run()` skips Surya detection,
@@ -91,6 +94,7 @@ class OCRPipeline:
         # graph after the legacy pages-data payload has been produced.
         self.last_document_result: DocumentResult | None = None
         self.document_processors = tuple(document_processors or ())
+        self.page_preprocessor = page_preprocessor
 
     async def run(
         self,
@@ -109,6 +113,8 @@ class OCRPipeline:
         dual_engine: bool = False,
         spellcheck: str = "none",
         cross_page: bool = False,
+        preprocessing_options: PagePreprocessingOptions | None = None,
+        quality_routing_options: QualityRoutingOptions | None = None,
         progress: ProgressCallback | None = None,
     ) -> dict[int, list[str]]:
         """
@@ -171,6 +177,30 @@ class OCRPipeline:
         if pages:
             selected = set(parse_page_range(pages, total_pages))
             page_nums = [p for p in page_nums if p in selected]
+            images_dict = {
+                p: image for p, image in images_dict.items() if p in selected
+            }
+
+        preprocessing_metadata: dict[int, dict[str, object]] = {}
+        if (
+            self.page_preprocessor is not None
+            and preprocessing_options is not None
+            and preprocessing_options.enabled
+        ):
+            await _notify(
+                progress,
+                "convert",
+                0,
+                1,
+                f"Preprocessing {len(page_nums)} pages...",
+            )
+            preprocessing_result = await asyncio.to_thread(
+                self.page_preprocessor.preprocess,
+                images_dict,
+                preprocessing_options,
+            )
+            images_dict = preprocessing_result.images
+            preprocessing_metadata = preprocessing_result.metadata
         await _notify(progress, "convert", 1, 1, f"Converted {total_pages} pages.")
 
         # --- Phase 1: batch layout detection ---
@@ -307,9 +337,17 @@ class OCRPipeline:
         document_result = DocumentResult.from_pages_data(
             pages_structured, source_path=input_path, source_processor="hybrid"
         )
+        for page in document_result.pages:
+            metadata = preprocessing_metadata.get(page.page_index)
+            if metadata:
+                page.metadata["preprocessing"] = metadata
         self.last_document_result = await run_document_processors(
             document_result, self.document_processors
         )
+        if quality_routing_options is not None and quality_routing_options.enabled:
+            self.last_document_result = QualityRoutingPolicy().apply(
+                self.last_document_result, quality_routing_options
+            )
         pages_structured = self.last_document_result.to_pages_data()
         page_nums = sorted(pages_structured)
 

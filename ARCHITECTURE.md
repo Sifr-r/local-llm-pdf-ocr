@@ -2,8 +2,8 @@
 
 ## System Shape
 
-`local-deepl` is a Python 3.11+ OCR application with a shared pipeline
-used by the CLI and FastAPI web server. Inputs are PDFs or images. Outputs are
+`local-deepl` is a Python 3.11+ Web UI/API OCR application with a shared
+pipeline behind the FastAPI server. Inputs are PDFs or images. Outputs are
 searchable sandwich PDFs with normalized OCR bounding boxes embedded as an
 invisible text layer.
 
@@ -21,7 +21,6 @@ PDF/image -> grounded bbox-native VLM OCR -> optional post-process -> DocumentRe
 | Path | Single Responsibility |
 | --- | --- |
 | `src/local_deepl/__init__.py` | Lazy package-level public exports that avoid loading OCR or web dependencies during unrelated submodule imports |
-| `src/local_deepl/cli.py` | CLI arguments, runtime wiring, and Rich progress output |
 | `src/local_deepl/server.py` | Lazy optional-web dependency loading, FastAPI application setup, and server entry point |
 | `src/local_deepl/pipeline.py` | Shared hybrid and grounded OCR orchestration |
 | `src/local_deepl/core/document.py` | Normalized `DocumentResult` IR, pages, blocks, spans, text aggregation, and legacy pages-data adapter |
@@ -39,6 +38,8 @@ PDF/image -> grounded bbox-native VLM OCR -> optional post-process -> DocumentRe
 | `src/local_deepl/api/routers/websocket.py` | Token-bound WebSocket progress transport and progress session issuance |
 | `src/local_deepl/api/schemas/` | Typed FastAPI boundary schemas for runtime configuration, OCR form settings, translation, and extraction requests |
 | `src/local_deepl/api/services/document_metadata.py` | Compact JSON report builder and atomic writer for token-bound `DocumentResult` metadata artifacts |
+| `src/local_deepl/api/services/document_exports.py` | Token-bound JSON, Markdown, text, Docling-compatible, and MinerU-compatible export artifact builder |
+| `src/local_deepl/api/services/workflow.py` | Deterministic Web/API workflow summary builder |
 | `src/local_deepl/api/services/security.py` | API upload validation, stable error constants, temporary-file cleanup, and opaque text artifact IDs |
 | `src/local_deepl/api/tasks.py` | Optional Celery translation task execution |
 | `src/local_deepl/utils/image.py` | Image crop, blank-region detection, and crop encoding helpers |
@@ -107,6 +108,18 @@ Current built-ins are `reading_order`, `quality_analysis`, and
 | `src/local_deepl/api/services/document_metadata.py` | Build compact JSON-safe metadata reports from `DocumentResult` page/block processor annotations and write them atomically as temporary artifacts |
 | `src/local_deepl/api/routers/ocr.py` | Issue `X-Document-Metadata-Artifact-Id` and `X-Document-Metadata-Artifact-Token` only when report content exists, and serve protected `GET /metadata/{artifact_id}` |
 | `tests/test_api_safety.py` | Cover token-bound metadata artifact access and payload shape without changing text artifact behavior |
+
+### 2026-06-09: Stage 5-12 Web/API document intelligence
+
+| File | Responsibility |
+| --- | --- |
+| `pyproject.toml` | Remove the `local-deepl` CLI script and CLI-only `rich` dependency; keep `local-deepl-server` |
+| `src/local_deepl/core/preprocessing.py` | Add opt-in local page preprocessing diagnostics for the hybrid image path |
+| `src/local_deepl/core/processors.py` | Add `layout_enrichment` and `table_extraction` deterministic processors |
+| `src/local_deepl/api/services/document_exports.py` | Add token-bound JSON, Markdown, text, Docling-compatible, and MinerU-compatible exports |
+| `src/local_deepl/core/routing.py` | Record default-off quality routing recommendations in document metadata |
+| `src/local_deepl/api/services/workflow.py` | Expose deterministic Web/API workflow summaries |
+| `src/local_deepl/core/evaluation.py` | Add local evaluation metrics for text, bbox, reading-order, and table coverage |
 
 ### 2026-06-02: Direct grounded PDF pixmap conversion
 

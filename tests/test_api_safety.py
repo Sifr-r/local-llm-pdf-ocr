@@ -71,6 +71,13 @@ def _process_form() -> dict[str, str]:
         "dual_engine": "false",
         "spellcheck": "none",
         "cross_page": "false",
+        "preprocess_pages": "false",
+        "orientation_detection": "false",
+        "deskew": "false",
+        "denoise": "false",
+        "normalize_contrast": "false",
+        "crop_cleanup": "false",
+        "quality_routing": "false",
     }
 
 
@@ -230,7 +237,7 @@ def test_process_omits_document_metadata_artifact_when_no_report(tmp_path: Path)
         def __init__(self, *args, **kwargs):
             self.last_document_result = None
 
-        async def process_file(self, input_path, output_path, **kwargs):
+        async def run(self, input_path, output_path, **kwargs):
             Path(output_path).write_bytes(b"%PDF-1.4\n%%EOF\n")
             return {0: ["safe text"]}
 
@@ -268,7 +275,7 @@ def test_process_exposes_token_bound_document_metadata_artifact(tmp_path: Path):
         def __init__(self, *args, **kwargs):
             self.last_document_result = None
 
-        async def process_file(self, input_path, output_path, **kwargs):
+        async def run(self, input_path, output_path, **kwargs):
             Path(output_path).write_bytes(b"%PDF-1.4\n%%EOF\n")
             document = DocumentResult.from_pages_data(
                 {0: [([0.1, 0.1, 0.4, 0.2], "Invoice")]}
@@ -333,7 +340,7 @@ def test_process_exposes_token_bound_document_metadata_artifact(tmp_path: Path):
 
         denied = client.get(
             f"/metadata/{artifact_id}",
-            headers={"Authorization": "Bearer wrong"},
+            headers={"Authorization": f"Bearer {'A' * 43}"},
         )
         assert denied.status_code == 403
 
@@ -357,6 +364,43 @@ def test_process_exposes_token_bound_document_metadata_artifact(tmp_path: Path):
     finally:
         ocr._text_artifacts = original_text_store
         ocr._metadata_artifacts = original_metadata_store
+
+
+def test_document_export_artifact_is_token_bound(tmp_path: Path):
+    original_text_store = ocr._text_artifacts
+    original_export_store = ocr._export_artifacts
+    ocr._text_artifacts = TextArtifactStore(artifact_dir=tmp_path / "text")
+    ocr._export_artifacts = TextArtifactStore(artifact_dir=tmp_path / "export")
+
+    try:
+        handle = ocr._text_artifacts.create({0: ["alpha", "beta"]})
+        client = _api_client()
+        response = client.post(
+            "/api/export/document",
+            json={
+                "text_artifact_id": handle.artifact_id,
+                "text_artifact_token": handle.token,
+                "export_format": "markdown",
+            },
+        )
+        assert response.status_code == 200
+        body = response.json()
+
+        denied = client.get(
+            f"/export/{body['artifact_id']}",
+            headers={"Authorization": f"Bearer {'A' * 43}"},
+        )
+        assert denied.status_code == 403
+
+        exported = client.get(
+            f"/export/{body['artifact_id']}",
+            headers={"Authorization": f"Bearer {body['token']}"},
+        )
+        assert exported.status_code == 200
+        assert exported.text.startswith("## Page 1")
+    finally:
+        ocr._text_artifacts = original_text_store
+        ocr._export_artifacts = original_export_store
 
 
 def test_progress_session_uses_token_bound_websocket_channels():

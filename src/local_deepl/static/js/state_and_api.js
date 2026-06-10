@@ -82,10 +82,19 @@ const refs = {
     dualEngine: document.getElementById('setting-dual-engine'),
     spellcheck: document.getElementById('setting-spellcheck'),
     crossPage: document.getElementById('setting-cross-page'),
+    preprocessPages: document.getElementById('setting-preprocess-pages'),
+    orientationDetection: document.getElementById('setting-orientation-detection'),
+    deskew: document.getElementById('setting-deskew'),
+    denoise: document.getElementById('setting-denoise'),
+    normalizeContrast: document.getElementById('setting-normalize-contrast'),
+    cropCleanup: document.getElementById('setting-crop-cleanup'),
     readingOrder: document.getElementById('setting-reading-order'),
     qualityAnalysis: document.getElementById('setting-quality-analysis'),
+    qualityRouting: document.getElementById('setting-quality-routing'),
     structureAnalysis: document.getElementById('setting-structure-analysis'),
     sectionAnalysis: document.getElementById('setting-section-analysis'),
+    layoutEnrichment: document.getElementById('setting-layout-enrichment'),
+    tableExtraction: document.getElementById('setting-table-extraction'),
     pages: document.getElementById('setting-pages'),
     
     // Upload slots & active file card
@@ -180,14 +189,23 @@ async function loadConfig() {
         if (refs.refine) refs.refine.checked = config.refine !== false;
         if (refs.selfCorrection) refs.selfCorrection.checked = config.self_correction === true;
         if (refs.binarize) refs.binarize.checked = config.binarize === true;
-        if (refs.dualEngine) refs.dualEngine.checked = config.dual_engine === true;
-        if (refs.spellcheck) refs.spellcheck.value = config.spellcheck || 'none';
-        if (refs.crossPage) refs.crossPage.checked = config.cross_page === true;
-        const documentProcessors = Array.isArray(config.document_processors) ? config.document_processors : [];
+    if (refs.dualEngine) refs.dualEngine.checked = config.dual_engine === true;
+    if (refs.spellcheck) refs.spellcheck.value = config.spellcheck || 'none';
+    if (refs.crossPage) refs.crossPage.checked = config.cross_page === true;
+    if (refs.preprocessPages) refs.preprocessPages.checked = config.preprocess_pages === true;
+    if (refs.orientationDetection) refs.orientationDetection.checked = config.orientation_detection === true;
+    if (refs.deskew) refs.deskew.checked = config.deskew === true;
+    if (refs.denoise) refs.denoise.checked = config.denoise === true;
+    if (refs.normalizeContrast) refs.normalizeContrast.checked = config.normalize_contrast === true;
+    if (refs.cropCleanup) refs.cropCleanup.checked = config.crop_cleanup === true;
+    if (refs.qualityRouting) refs.qualityRouting.checked = config.quality_routing === true;
+    const documentProcessors = Array.isArray(config.document_processors) ? config.document_processors : [];
         if (refs.readingOrder) refs.readingOrder.checked = documentProcessors.includes('reading_order');
-        if (refs.qualityAnalysis) refs.qualityAnalysis.checked = documentProcessors.includes('quality_analysis');
-        if (refs.structureAnalysis) refs.structureAnalysis.checked = documentProcessors.includes('structure_analysis');
-        if (refs.sectionAnalysis) refs.sectionAnalysis.checked = documentProcessors.includes('section_analysis');
+    if (refs.qualityAnalysis) refs.qualityAnalysis.checked = documentProcessors.includes('quality_analysis');
+    if (refs.structureAnalysis) refs.structureAnalysis.checked = documentProcessors.includes('structure_analysis');
+    if (refs.sectionAnalysis) refs.sectionAnalysis.checked = documentProcessors.includes('section_analysis');
+    if (refs.layoutEnrichment) refs.layoutEnrichment.checked = documentProcessors.includes('layout_enrichment');
+    if (refs.tableExtraction) refs.tableExtraction.checked = documentProcessors.includes('table_extraction');
 
         if (refs.pipelineModes) {
             for (const radio of refs.pipelineModes) {
@@ -209,6 +227,8 @@ function getSelectedDocumentProcessors() {
     if (refs.qualityAnalysis?.checked) processors.push('quality_analysis');
     if (refs.structureAnalysis?.checked) processors.push('structure_analysis');
     if (refs.sectionAnalysis?.checked) processors.push('section_analysis');
+    if (refs.layoutEnrichment?.checked) processors.push('layout_enrichment');
+    if (refs.tableExtraction?.checked) processors.push('table_extraction');
     return processors;
 }
 
@@ -230,6 +250,13 @@ async function saveConfig() {
         dual_engine: refs.dualEngine ? refs.dualEngine.checked : false,
         spellcheck: refs.spellcheck ? refs.spellcheck.value : 'none',
         cross_page: refs.crossPage ? refs.crossPage.checked : false,
+        preprocess_pages: refs.preprocessPages ? refs.preprocessPages.checked : false,
+        orientation_detection: refs.orientationDetection ? refs.orientationDetection.checked : false,
+        deskew: refs.deskew ? refs.deskew.checked : false,
+        denoise: refs.denoise ? refs.denoise.checked : false,
+        normalize_contrast: refs.normalizeContrast ? refs.normalizeContrast.checked : false,
+        crop_cleanup: refs.cropCleanup ? refs.cropCleanup.checked : false,
+        quality_routing: refs.qualityRouting ? refs.qualityRouting.checked : false,
         document_processors: getSelectedDocumentProcessors()
     };
     
@@ -251,7 +278,7 @@ function debounceSave() {
 }
 
 // Auto-save listeners
-[refs.apiBase, refs.apiKey, refs.modelSelect, refs.dpi, refs.concurrency, refs.denseMode, refs.maxImageDim, refs.denseThreshold, refs.refine, refs.selfCorrection, refs.binarize, refs.dualEngine, refs.spellcheck, refs.crossPage, refs.readingOrder, refs.qualityAnalysis, refs.structureAnalysis, refs.sectionAnalysis].forEach(el => {
+[refs.apiBase, refs.apiKey, refs.modelSelect, refs.dpi, refs.concurrency, refs.denseMode, refs.maxImageDim, refs.denseThreshold, refs.refine, refs.selfCorrection, refs.binarize, refs.dualEngine, refs.spellcheck, refs.crossPage, refs.preprocessPages, refs.orientationDetection, refs.deskew, refs.denoise, refs.normalizeContrast, refs.cropCleanup, refs.readingOrder, refs.qualityAnalysis, refs.qualityRouting, refs.structureAnalysis, refs.sectionAnalysis, refs.layoutEnrichment, refs.tableExtraction].forEach(el => {
     if (!el) return;
     el.addEventListener('change', debounceSave);
     el.addEventListener('input', debounceSave);
@@ -340,6 +367,13 @@ function getFormSettings() {
         dual_engine: refs.dualEngine ? (refs.dualEngine.checked ? 'true' : 'false') : 'false',
         spellcheck: refs.spellcheck ? refs.spellcheck.value : 'none',
         cross_page: refs.crossPage ? (refs.crossPage.checked ? 'true' : 'false') : 'false',
+        preprocess_pages: refs.preprocessPages ? (refs.preprocessPages.checked ? 'true' : 'false') : 'false',
+        orientation_detection: refs.orientationDetection ? (refs.orientationDetection.checked ? 'true' : 'false') : 'false',
+        deskew: refs.deskew ? (refs.deskew.checked ? 'true' : 'false') : 'false',
+        denoise: refs.denoise ? (refs.denoise.checked ? 'true' : 'false') : 'false',
+        normalize_contrast: refs.normalizeContrast ? (refs.normalizeContrast.checked ? 'true' : 'false') : 'false',
+        crop_cleanup: refs.cropCleanup ? (refs.cropCleanup.checked ? 'true' : 'false') : 'false',
+        quality_routing: refs.qualityRouting ? (refs.qualityRouting.checked ? 'true' : 'false') : 'false',
         document_processors: getSelectedDocumentProcessors().join(','),
         pages: refs.pages ? refs.pages.value.trim() : ''
     };

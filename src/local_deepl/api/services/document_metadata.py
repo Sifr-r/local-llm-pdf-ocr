@@ -19,12 +19,20 @@ if TYPE_CHECKING:
 
 DOCUMENT_METADATA_ARTIFACT_PREFIX = "metadata"
 DOCUMENT_METADATA_REPORT_VERSION = 1
-_REPORT_METADATA_KEYS = ("quality", "structure", "sections")
-_BLOCK_METADATA_KEYS = ("structure", "section")
+_REPORT_METADATA_KEYS = (
+    "preprocessing",
+    "quality",
+    "structure",
+    "sections",
+    "layout",
+    "tables",
+    "routing",
+)
+_BLOCK_METADATA_KEYS = ("structure", "section", "layout", "table")
 
 
 def build_document_metadata_report(
-    document: "DocumentResult | None",
+    document: DocumentResult | None,
 ) -> dict[str, Any] | None:
     """Build a compact, JSON-safe report from local document processor outputs."""
     if document is None:
@@ -114,7 +122,7 @@ def write_document_metadata_atomic(
 
 def _block_metadata_report(
     block_index: int,
-    block: "DocumentBlock",
+    block: DocumentBlock,
 ) -> dict[str, Any] | None:
     metadata = {
         key: _json_safe_value(value)
@@ -146,6 +154,10 @@ def _processors_for_page_metadata(metadata: Mapping[str, Any]) -> set[str]:
         processors.add("structure_analysis")
     if "sections" in metadata:
         processors.add("section_analysis")
+    if "layout" in metadata:
+        processors.add("layout_enrichment")
+    if "tables" in metadata:
+        processors.add("table_extraction")
     return processors
 
 
@@ -160,6 +172,10 @@ def _processors_for_block_report(report: Mapping[str, Any]) -> set[str]:
             processors.add("structure_analysis")
         if "section" in metadata:
             processors.add("section_analysis")
+        if "layout" in metadata:
+            processors.add("layout_enrichment")
+        if "table" in metadata:
+            processors.add("table_extraction")
     return processors
 
 
@@ -184,9 +200,7 @@ def _json_safe_value(value: Any) -> Any:
         return value
     if isinstance(value, float):
         if not math.isfinite(value):
-            raise InvalidArtifactPayloadError(
-                "Metadata report numbers must be finite."
-            )
+            raise InvalidArtifactPayloadError("Metadata report numbers must be finite.")
         return value
     if isinstance(value, Mapping):
         return _json_safe_mapping(value)

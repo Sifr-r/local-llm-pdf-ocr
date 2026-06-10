@@ -1,5 +1,5 @@
 """
-TQDM Patch - Silences progress bars to prevent collision with Rich.
+TQDM Patch - Silences progress bars for clean server output.
 
 Provides a dummy tqdm implementation that silently passes through iterables
 without displaying progress bars.

@@ -3,6 +3,8 @@
 from .requests import (
     ConfigUpdate,
     DenseMode,
+    DocumentExportFormat,
+    DocumentExportRequest,
     DocumentProcessorName,
     ExportDocxRequest,
     ExtractionRequest,
@@ -15,6 +17,8 @@ from .requests import (
 __all__ = [
     "ConfigUpdate",
     "DenseMode",
+    "DocumentExportFormat",
+    "DocumentExportRequest",
     "DocumentProcessorName",
     "ExtractionRequest",
     "ExportDocxRequest",

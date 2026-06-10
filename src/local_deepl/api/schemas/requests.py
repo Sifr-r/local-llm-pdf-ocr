@@ -32,6 +32,8 @@ class DocumentProcessorName(StrEnum):
     QUALITY_ANALYSIS = "quality_analysis"
     STRUCTURE_ANALYSIS = "structure_analysis"
     SECTION_ANALYSIS = "section_analysis"
+    LAYOUT_ENRICHMENT = "layout_enrichment"
+    TABLE_EXTRACTION = "table_extraction"
 
 
 class ExtractionTemplate(StrEnum):
@@ -39,6 +41,14 @@ class ExtractionTemplate(StrEnum):
     RESUME = "resume"
     ACADEMIC = "academic"
     CUSTOM = "custom"
+
+
+class DocumentExportFormat(StrEnum):
+    JSON = "json"
+    MARKDOWN = "markdown"
+    TEXT = "text"
+    DOCLING = "docling"
+    MINERU = "mineru"
 
 
 _PAGE_RANGE_RE = re.compile(
@@ -99,6 +109,13 @@ class ConfigUpdate(BaseModel):
     dual_engine: bool | None = None
     spellcheck: SpellcheckMode | None = None
     cross_page: bool | None = None
+    preprocess_pages: bool | None = None
+    orientation_detection: bool | None = None
+    deskew: bool | None = None
+    denoise: bool | None = None
+    normalize_contrast: bool | None = None
+    crop_cleanup: bool | None = None
+    quality_routing: bool | None = None
     document_processors: list[DocumentProcessorName] | None = None
 
     @field_validator("api_base", "api_key", "model", mode="before")
@@ -128,6 +145,13 @@ class ConfigUpdate(BaseModel):
         "binarize",
         "dual_engine",
         "cross_page",
+        "preprocess_pages",
+        "orientation_detection",
+        "deskew",
+        "denoise",
+        "normalize_contrast",
+        "crop_cleanup",
+        "quality_routing",
         mode="before",
     )
     @classmethod
@@ -161,6 +185,13 @@ class ProcessSettings(BaseModel):
     dual_engine: bool
     spellcheck: SpellcheckMode
     cross_page: bool
+    preprocess_pages: bool
+    orientation_detection: bool
+    deskew: bool
+    denoise: bool
+    normalize_contrast: bool
+    crop_cleanup: bool
+    quality_routing: bool
     document_processors: list[DocumentProcessorName] = Field(default_factory=list)
 
     @field_validator("api_base", "api_key", "model", mode="before")
@@ -246,3 +277,15 @@ class ExportDocxRequest(BaseModel):
         if not isinstance(value, str):
             raise ValueError("must be a string")
         return value.strip()
+
+
+class DocumentExportRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    text_artifact_id: str = Field(min_length=32, max_length=32)
+    text_artifact_token: str = Field(min_length=32, max_length=256)
+    export_format: DocumentExportFormat = DocumentExportFormat.JSON
+    metadata_artifact_id: str | None = Field(default=None, min_length=32, max_length=32)
+    metadata_artifact_token: str | None = Field(
+        default=None, min_length=32, max_length=256
+    )
